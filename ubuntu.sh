@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Boostraps an ubuntu machine to be used as an agent for nanobox
+#
+# $1 = access token
+# $2 = virtual IP
+
+# todo:
+# systemd compatibility 
+
+# set globals to defaults for testing
+TOKEN="123"
+VIP="192.168.0.55"
+
 ubuntu_version() {
   lsb_release -sd \
     | awk '{print $2}' \
@@ -37,6 +49,9 @@ install_docker() {
 
     # install docker
     apt-get -y install docker-engine
+
+    # set docker defaults
+    echo "$(docker_defaults)" > /etc/default/docker
   fi
 }
 
@@ -59,9 +74,6 @@ install_red() {
     wget -O /tmp/libmsgxchng_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/libmsgxchng_1.0.0-1_amd64.deb
     wget -O /tmp/red_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/red_1.0.0-1_amd64.deb
     wget -O /tmp/redd_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/redd_1.0.0-1_amd64.deb
-
-    # update apt
-    apt-get -y update
 
     # install dependencies
     apt-get -y install libmsgpack3 libuv0.10
@@ -118,7 +130,7 @@ create_docker_network() {
       --driver=bridge --subnet=192.168.0.0/16 \
       --opt="com.docker.network.driver.mtu=1450" \
       --opt="com.docker.network.bridge.name=redd0" \
-      --gateway=192.168.0.55 \
+      --gateway=$VIP \
       nanobox
   fi
 }
@@ -133,9 +145,84 @@ create_vxlan_bridge() {
 
 start_vxlan_bridge() {
   if [[ ! `service vxlan status | grep start/running` ]]; then
-    # start the redd daemon
+    # start the vxlan bridge
     service vxlan start
   fi
+}
+
+install_nanoagent() {
+  if [[ ! -f /usr/local/bin/nanoagent ]]; then
+    # download nanoagent
+    curl \
+      -f \
+      -k \
+      -o /usr/local/bin/nanoagent \
+      http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent
+
+    # update permissions
+    chmod 755 /usr/local/bin/nanoagent
+
+    # download md5
+    mkdir -p /var/nanobox
+    curl \
+      -f \
+      -k \
+      -o /var/nanobox/nanoagent.md5 \
+      http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent.md5
+
+    # create db
+    mkdir -p /var/db/nanoagent
+
+    # generate config file
+    mkdir -p /etc/nanoagent
+    echo "$(nanoagent_json)" > /etc/nanoagent/config.json
+
+    # create init script
+    if [[ "$(init_system)" = "systemd" ]]; then
+      todo
+    elif [[ "$(init_system)" = "upstart" ]]; then
+      echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
+    fi
+  fi
+
+  # create update script
+  if [[ ! -f /usr/local/bin/nanoagent-update ]]; then
+    # create the utility
+    echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
+
+    # update permissions
+    chmod 755 /usr/local/bin/nanoagent-update
+  fi
+}
+
+start_nanoagent() {
+  if [[ ! `service nanoagent status | grep start/running` ]]; then
+    # start the nanoagent daemon
+    service nanoagent start
+  fi
+}
+
+configure_firewall() {
+  # create init script
+  if [[ "$(init_system)" = "systemd" ]]; then
+    todo
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(firewall_upstart_conf)" > /etc/init/firewall.conf
+  fi
+}
+
+start_firewall() {
+  if [[ ! `service firewall status | grep start/running` ]]; then
+    # start the firewall bridge
+    service firewall start
+  fi
+}
+
+docker_defaults() {
+  cat <<-END
+DOCKER_OPTS="--iptables=false"
+
+END
 }
 
 redd_conf() {
@@ -167,7 +254,6 @@ respawn
 kill timeout 20
 
 exec redd /etc/redd.conf
-
 END
 }
 
@@ -199,18 +285,127 @@ end script
 END
 }
 
-init_nanoagent() {
-  echo
+nanoagent_json() {
+  cat <<-END
+{
+  "token":"$TOKEN"
+  "log_level":"DEBUG"
+  "api_port":"8570"
+  "route_http_port":"80"
+  "route_tls_port":"443"
+  "data_file":"/var/db/nanoagent/bolt.db"
+}
+END
 }
 
-init_firewall() {
-  echo
+nanoagent_update() {
+  cat <<-END
+#!/bin/bash
+
+# extract installed version
+current=\$(cat /var/nanobox/nanoagent.md5)
+
+# download the latest checksum
+curl \\
+  -f \\
+  -k \\
+  -s \\
+  -o /var/nanobox/nanoagent.md5 \\
+  http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent.md5
+
+# compare latest with installed
+latest=\$(cat /var/nanobox/nanoagent.md5)
+
+if [ ! "\$current" = "\$latest" ]; then
+  echo "Nanoagent is out of date, updating to latest"
+
+  # stop the running Nanoagent
+  service nanoagent stop
+
+  # download the latest version
+  curl \\
+    -f \\
+    -k \\
+    -o /usr/local/bin/nanoagent \\
+    http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent
+
+  # update permissions
+  chmod 755 /usr/local/bin/nanoagent
+
+  # start the new version
+  service nanoagent start
+else
+  echo "Nanoagent is up to date."
+fi
+END
+}
+
+nanoagent_upstart_conf() {
+  cat <<-END
+description "Nanoagent daemon"
+
+start on (filesystem and net-device-up IFACE!=lo)
+stop on runlevel [!2345]
+
+respawn
+
+kill timeout 20
+
+exec /usr/local/bin/nanoagent server --config /etc/nanoagent/config.json
+END
+}
+
+firewall_upstart_conf() {
+  cat <<-END
+description "Nanobox firewall base lockdown"
+
+start on runlevel [2345]
+
+script
+
+# flush the current firewall
+iptables -F
+
+# Set default policies (nothing in, anything out)
+iptables -P INPUT DROP
+iptables -P FORWARD DROP
+iptables -P OUTPUT ACCEPT
+
+# Allow returning packets
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+# Allow local traffic
+iptables -A INPUT -i lo -j ACCEPT
+
+# allow ssh connections from anywhere
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# allow nanoagent api connections
+iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
+
+end script
+END
 }
 
 run() {
   echo "+> $2"
   ($1 2>&1) |  sed -e 's/\r//g;s/^/   /'
 }
+
+# parse args and set values
+for arg in "${@}"; do
+  read key value <<<$(echo $arg | sed 's/-//g' | awk -F= '{print $1" "$2}')
+
+  case $key in
+    token )
+      TOKEN=$value
+      ;;
+    vip )
+      VIP=$value
+      ;;
+  esac
+
+done
 
 run install_docker "Installing docker"
 run start_docker "Starting docker daemon"
@@ -223,7 +418,10 @@ run create_docker_network "Creating isolated docker network"
 run create_vxlan_bridge "Creating red vxlan bridge"
 run start_vxlan_bridge "Starting red vxlan bridge"
 
+run install_nanoagent "Installing nanoagent"
+run start_nanoagent "Starting nanoagent"
 
+run configure_firewall "Configuring firewall"
+run start_firewall "Starting firewall"
 
-# init_nanoagent
-# init_firewall
+echo "+> Hold on to your butts"
