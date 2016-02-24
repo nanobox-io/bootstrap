@@ -377,6 +377,12 @@ iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 # Allow local traffic
 iptables -A INPUT -i lo -j ACCEPT
 
+# allow ssh connections from anywhere
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# allow nanoagent api connections
+iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
+
 # Allow vxlan and docker traffic
 iptables -A INPUT -i redd0 -j ACCEPT
 iptables -A FORWARD -i redd0 -j ACCEPT
@@ -384,14 +390,8 @@ iptables -A FORWARD -o redd0 -j ACCEPT
 iptables -A INPUT -i docker0 -j ACCEPT
 iptables -A FORWARD -i docker0 -j ACCEPT
 iptables -A FORWARD -o docker0 -j ACCEPT
-iptables -t NAT -A POSTROUTING -o eth0 -j MASQUERADE
-iptables -t NAT -A POSTROUTING -o eth1 -j MASQUERADE
-
-# allow ssh connections from anywhere
-iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-
-# allow nanoagent api connections
-iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
 
 end script
 END
