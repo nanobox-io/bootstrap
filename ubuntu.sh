@@ -6,7 +6,7 @@
 # $2 = virtual IP
 
 # todo:
-# systemd compatibility 
+# systemd compatibility
 
 # set globals to defaults for testing
 TOKEN="123"
@@ -376,6 +376,13 @@ iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 # Allow local traffic
 iptables -A INPUT -i lo -j ACCEPT
+
+# Allow vxlan traffic
+iptables -A INPUT -i redd0 -j ACCEPT
+iptables -A FORWARD -i redd0 -j ACCEPT
+iptables -A FORWARD -o redd0 -j ACCEPT
+iptables -t NAT -A POSTROUTING -o eth0 -j MASQUERADE
+iptables -t NAT -A POSTROUTING -o eth1 -j MASQUERADE
 
 # allow ssh connections from anywhere
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT
