@@ -292,6 +292,9 @@ end script
 
 script
   if [ ! \`/sbin/brctl show | /bin/grep redd0 | /bin/grep vxlan0\` ]; then
+    # disable mac address learning to ensure broadcasts are always forwarded
+    /sbin/brctl setageing redd0 0
+
     # bridge the network onto the red vxlan
     /sbin/brctl addif redd0 vxlan0
   fi
