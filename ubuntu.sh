@@ -32,15 +32,14 @@ init_system() {
 
 internal_ip() {
   ip addr \
-    | grep "inet 10\." \
-      | awk '{print $2}' \
-        | awk -F/ '{print $1}'
+    | grep "$(internal_iface)" \
+      | grep "inet 10\." \
+        | awk '{print $2}' \
+          | awk -F/ '{print $1}'
 }
 
 internal_iface() {
-  ip addr \
-    | grep "inet 10\." \
-      | awk '{print $7}'
+  echo "eth1"
 }
 
 install_docker() {
