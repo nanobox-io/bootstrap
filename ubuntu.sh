@@ -1,11 +1,13 @@
 #!/bin/bash
-
-# Boostraps an ubuntu machine to be used as an agent for nanobox
 #
-# $1 = access token
-# $2 = virtual IP
+# Boostraps an ubuntu machine to be used as an agent for nanobox
+
+# exit if any any command fails
+set -e
 
 # todo:
+# set timezone
+# verify
 # systemd compatibility
 
 # set globals to defaults for testing
@@ -28,6 +30,19 @@ init_system() {
   fi
 }
 
+internal_ip() {
+  ip addr \
+    | grep "inet 10\." \
+      | awk '{print $2}' \
+        | awk -F/ '{print $1}'
+}
+
+internal_iface() {
+  ip addr \
+    | grep "inet 10\." \
+      | awk '{print $7}'
+}
+
 install_docker() {
   # install docker if not already installed
   if [[ ! -f /usr/bin/docker ]]; then
@@ -38,7 +53,7 @@ install_docker() {
 
     # add the source to our apt sources
     echo \
-      "deb https://apt.dockerproject.org/repo ubuntu-trusty main \n" \
+      "deb https://apt.dockerproject.org/repo ubuntu-trusty main" \
         > /etc/apt/sources.list.d/docker.list
 
     # update the package index
@@ -237,7 +252,8 @@ timeout 0
 routing-enabled yes
 
 bind 127.0.0.1
-udp-listen-address 127.0.0.1
+udp-listen-address $(internal_ip)
+vxlan-interface $(internal_iface)
 save-path /var/db/redd
 END
 }
@@ -288,11 +304,11 @@ END
 nanoagent_json() {
   cat <<-END
 {
-  "token":"$TOKEN"
-  "log_level":"DEBUG"
-  "api_port":"8570"
-  "route_http_port":"80"
-  "route_tls_port":"443"
+  "token":"$TOKEN",
+  "log_level":"DEBUG",
+  "api_port":"8570",
+  "route_http_port":"80",
+  "route_tls_port":"443",
   "data_file":"/var/db/nanoagent/bolt.db"
 }
 END
