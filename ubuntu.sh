@@ -13,6 +13,7 @@ set -e
 # set globals to defaults for testing
 TOKEN="123"
 VIP="192.168.0.55"
+ID="123"
 
 ubuntu_version() {
   lsb_release -sd \
@@ -306,6 +307,7 @@ END
 nanoagent_json() {
   cat <<-END
 {
+  "host_id": "$ID",
   "token":"$TOKEN",
   "log_level":"DEBUG",
   "api_port":"8570",
@@ -425,6 +427,9 @@ for arg in "${@}"; do
   read key value <<<$(echo $arg | sed 's/-//g' | awk -F= '{print $1" "$2}')
 
   case $key in
+    id )
+      ID=$id
+      ;;
     token )
       TOKEN=$value
       ;;
