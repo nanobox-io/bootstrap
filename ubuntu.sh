@@ -428,7 +428,7 @@ for arg in "${@}"; do
 
   case $key in
     id )
-      ID=$id
+      ID=$value
       ;;
     token )
       TOKEN=$value
