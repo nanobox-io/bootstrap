@@ -217,6 +217,21 @@ start_nanoagent() {
   fi
 }
 
+create_modloader() {
+  if [[ "$(init_system)" = "systemd" ]]; then
+    todo
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(modloader_upstart_conf)" > /etc/init/modloader.conf
+  fi
+}
+
+start_modloader() {
+  if [[ ! `service modloader status | grep start/running` ]]; then
+    # start the nanoagent daemon
+    service modloader start
+  fi
+}
+
 configure_firewall() {
   # create init script
   if [[ "$(init_system)" = "systemd" ]]; then
@@ -301,6 +316,21 @@ script
   fi
 end script
 
+END
+}
+
+modloader_upstart_conf() {
+  cat <<-END
+description "Nanobox modloader"
+
+start on runlevel [2345]
+
+script
+
+# ensure ip_vs module is loaded
+modprobe ip_vs
+
+end script
 END
 }
 
@@ -450,6 +480,9 @@ run install_bridgeutils "Installing ethernet bridging utilities"
 run create_docker_network "Creating isolated docker network"
 run create_vxlan_bridge "Creating red vxlan bridge"
 run start_vxlan_bridge "Starting red vxlan bridge"
+
+run create_modloader "Creating modloader"
+run start_modloader "Starting modloader"
 
 run install_nanoagent "Installing nanoagent"
 run start_nanoagent "Starting nanoagent"
