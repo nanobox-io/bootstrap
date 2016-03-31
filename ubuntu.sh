@@ -14,6 +14,7 @@ set -e
 TOKEN="123"
 VIP="192.168.0.55"
 ID="123"
+COMPONENT=""
 
 ubuntu_version() {
   lsb_release -sd \
@@ -339,6 +340,7 @@ nanoagent_json() {
 {
   "host_id": "$ID",
   "token":"$TOKEN",
+  "labels": {"component":"$COMPONENT"},
   "log_level":"DEBUG",
   "api_port":"8570",
   "route_http_port":"80",
@@ -465,6 +467,9 @@ for arg in "${@}"; do
       ;;
     vip )
       VIP=$value
+      ;;
+    component )
+      COMPONENT=$value
       ;;
   esac
 
