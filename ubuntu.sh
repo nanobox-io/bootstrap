@@ -451,7 +451,16 @@ END
 
 run() {
   echo "+> $2"
-  ($1 2>&1) |  sed -e 's/\r//g;s/^/   /'
+  # ($1 2>&1) |  sed -e 's/\r//g;s/^/   /'
+  $1 2>&1 | format '   '
+}
+
+format() {
+  prefix=$1
+  while read LINE;
+  do
+    echo "${prefix}${LINE}"
+  done
 }
 
 # parse args and set values
