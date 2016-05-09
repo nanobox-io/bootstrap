@@ -489,10 +489,10 @@ run start_vxlan_bridge "Starting red vxlan bridge"
 run create_modloader "Creating modloader"
 run start_modloader "Starting modloader"
 
-run install_nanoagent "Installing nanoagent"
-run start_nanoagent "Starting nanoagent"
-
 run configure_firewall "Configuring firewall"
 run start_firewall "Starting firewall"
+
+run install_nanoagent "Installing nanoagent"
+run start_nanoagent "Starting nanoagent"
 
 echo "+> Hold on to your butts"
