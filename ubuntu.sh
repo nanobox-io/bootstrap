@@ -396,7 +396,7 @@ nanoagent_upstart_conf() {
   cat <<-END
 description "Nanoagent daemon"
 
-start on (filesystem and net-device-up IFACE!=lo)
+start on (filesystem and net-device-up IFACE!=lo and firewall)
 stop on runlevel [!2345]
 
 respawn
@@ -413,37 +413,43 @@ description "Nanobox firewall base lockdown"
 
 start on runlevel [2345]
 
+emits firewall
+
 script
 
-# flush the current firewall
-iptables -F
+if [ ! -f /run/iptables ]; then 
+  # flush the current firewall
+  iptables -F
 
-# Set default policies (nothing in, anything out)
-iptables -P INPUT DROP
-iptables -P FORWARD DROP
-iptables -P OUTPUT ACCEPT
+  # Set default policies (nothing in, anything out)
+  iptables -P INPUT DROP
+  iptables -P FORWARD DROP
+  iptables -P OUTPUT ACCEPT
 
-# Allow returning packets
-iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  # Allow returning packets
+  iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
-# Allow local traffic
-iptables -A INPUT -i lo -j ACCEPT
+  # Allow local traffic
+  iptables -A INPUT -i lo -j ACCEPT
 
-# allow ssh connections from anywhere
-iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+  # allow ssh connections from anywhere
+  iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
-# allow nanoagent api connections
-iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
+  # allow nanoagent api connections
+  iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
 
-# Allow vxlan and docker traffic
-iptables -A INPUT -i redd0 -j ACCEPT
-iptables -A FORWARD -i redd0 -j ACCEPT
-iptables -A FORWARD -o redd0 -j ACCEPT
-iptables -A INPUT -i docker0 -j ACCEPT
-iptables -A FORWARD -i docker0 -j ACCEPT
-iptables -A FORWARD -o docker0 -j ACCEPT
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+  # Allow vxlan and docker traffic
+  iptables -A INPUT -i redd0 -j ACCEPT
+  iptables -A FORWARD -i redd0 -j ACCEPT
+  iptables -A FORWARD -o redd0 -j ACCEPT
+  iptables -A INPUT -i docker0 -j ACCEPT
+  iptables -A FORWARD -i docker0 -j ACCEPT
+  iptables -A FORWARD -o docker0 -j ACCEPT
+  iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+  iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+  touch /run/iptables
+  initctl emit firewall
+fi
 
 end script
 END
