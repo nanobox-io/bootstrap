@@ -63,19 +63,11 @@ install_docker() {
     # ensure the old repo is purged
     apt-get -y purge lxc-docker
 
-    # install docker
-    apt-get -y install docker-engine
-
-    if [[ `service docker status | grep start/running` ]]; then
-      # start the docker daemon
-      service docker stop
-
-      # blast previously created files
-      rm -rf /var/lib/docker
-    fi
-
     # set docker defaults
     echo "$(docker_defaults)" > /etc/default/docker
+
+    # install docker
+    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine
   fi
 }
 
