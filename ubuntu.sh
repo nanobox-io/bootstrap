@@ -66,6 +66,14 @@ install_docker() {
     # install docker
     apt-get -y install docker-engine
 
+    if [[ `service docker status | grep start/running` ]]; then
+      # start the docker daemon
+      service docker stop
+
+      # blast previously created files
+      rm -rf /var/lib/docker
+    fi
+
     # set docker defaults
     echo "$(docker_defaults)" > /etc/default/docker
   fi
@@ -250,8 +258,9 @@ start_firewall() {
 }
 
 docker_defaults() {
+  size=`df -h / | sed -n 2p | awk '{print $2}'`
   cat <<-END
-DOCKER_OPTS="--iptables=false"
+DOCKER_OPTS="--iptables=false --storage-opt dm.loopdatasize=$size --storage-opt dm.basesize=$size"
 
 END
 }
