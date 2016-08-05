@@ -52,9 +52,14 @@ install_docker() {
       --keyserver hkp://p80.pool.sks-keyservers.net:80 \
       --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
+    # ensure lsb-release is installed
+    apt-get -y install lsb-release
+
+    release=$(lsb_release -c | awk '{print $2}')
+
     # add the source to our apt sources
     echo \
-      "deb https://apt.dockerproject.org/repo ubuntu-trusty main" \
+      "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
         > /etc/apt/sources.list.d/docker.list
 
     # update the package index
@@ -63,11 +68,11 @@ install_docker() {
     # ensure the old repo is purged
     apt-get -y purge lxc-docker
 
-    # install docker
-    apt-get -y install docker-engine
-
     # set docker defaults
     echo "$(docker_defaults)" > /etc/default/docker
+
+    # install docker
+    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.0-0~${release}
   fi
 }
 
@@ -250,8 +255,9 @@ start_firewall() {
 }
 
 docker_defaults() {
+  size=`df -h / | sed -n 2p | awk '{print $2}'`
   cat <<-END
-DOCKER_OPTS="--iptables=false"
+DOCKER_OPTS="--iptables=false --storage-opt dm.loopdatasize=$size --storage-opt dm.basesize=$size"
 
 END
 }
