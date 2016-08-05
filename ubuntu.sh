@@ -52,9 +52,14 @@ install_docker() {
       --keyserver hkp://p80.pool.sks-keyservers.net:80 \
       --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
+    # ensure lsb-release is installed
+    apt-get -y install lsb-release
+
+    release=$(lsb_release -c | awk '{print $2}')
+
     # add the source to our apt sources
     echo \
-      "deb https://apt.dockerproject.org/repo ubuntu-trusty main" \
+      "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
         > /etc/apt/sources.list.d/docker.list
 
     # update the package index
@@ -66,11 +71,8 @@ install_docker() {
     # set docker defaults
     echo "$(docker_defaults)" > /etc/default/docker
 
-    # ensure lsb-release is installed
-    apt-get -y install lsb-release
-
     # install docker
-    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.0-0~$(lsb_release -c | awk '{print $2}')
+    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.0-0~${release}
   fi
 }
 
