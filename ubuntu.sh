@@ -409,7 +409,7 @@ respawn
 
 kill timeout 20
 
-exec /usr/local/bin/nanoagent server --config /etc/nanoagent/config.json
+exec /usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log
 END
 }
 
@@ -423,7 +423,7 @@ emits firewall
 
 script
 
-if [ ! -f /run/iptables ]; then 
+if [ ! -f /run/iptables ]; then
   # flush the current firewall
   iptables -F
 
