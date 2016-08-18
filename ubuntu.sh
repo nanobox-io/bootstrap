@@ -344,7 +344,7 @@ END
 nanoagent_json() {
   cat <<-END
 {
-  "host_id": "$ID",
+  "host_id": "$id",
   "token":"$TOKEN",
   "labels": {"component":"$COMPONENT"},
   "log_level":"DEBUG",
@@ -475,21 +475,20 @@ format() {
 }
 
 # parse args and set values
-for arg in "${@}"; do
-  read key value <<<$(echo $arg | sed 's/-//g' | awk -F= '{print $1" "$2}')
+for i in "${@}"; do
 
-  case $key in
-    id )
-      ID=$value
+  case $i in
+    --id=* )
+      ID=${i#*=}
       ;;
-    token )
-      TOKEN=$value
+    --token=* )
+      TOKEN=${i#*=}
       ;;
-    vip )
-      VIP=$value
+    --vip=* )
+      VIP=${i#*=}
       ;;
-    component )
-      COMPONENT=$value
+    --component=* )
+      COMPONENT=${i#*=}
       ;;
   esac
 
