@@ -344,7 +344,7 @@ END
 nanoagent_json() {
   cat <<-END
 {
-  "host_id": "$id",
+  "host_id": "$ID",
   "token":"$TOKEN",
   "labels": {"component":"$COMPONENT"},
   "log_level":"DEBUG",
