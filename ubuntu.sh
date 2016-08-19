@@ -478,16 +478,16 @@ format() {
 for i in "${@}"; do
 
   case $i in
-    --id=* )
+    id=* )
       ID=${i#*=}
       ;;
-    --token=* )
+    token=* )
       TOKEN=${i#*=}
       ;;
-    --vip=* )
+    vip=* )
       VIP=${i#*=}
       ;;
-    --component=* )
+    component=* )
       COMPONENT=${i#*=}
       ;;
   esac

@@ -12,6 +12,6 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder ".", "/vagrant"
 
    config.vm.provision "shell", inline: <<-SCRIPT
-    /vagrant/ubuntu.sh --id=test-value --token=test-token --vip=192.168.0.2 --component=test-component
+    /vagrant/ubuntu.sh id=test-value token=test-token vip=192.168.0.2 component=test-component
   SCRIPT
 end
