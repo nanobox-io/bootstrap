@@ -1,5 +1,7 @@
 #!/bin/bash
 
+MD5=$(which md5 || which md5sum)
+
 util_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(dirname $util_dir)"
 
@@ -13,7 +15,7 @@ for host in "${hosts[@]}"; do
   cp $project_dir/$host.sh $project_dir/.build/
 
   echo "Generating md5 for $host ..."
-  cat $project_dir/$host.sh | md5 > $project_dir/.build/$host.md5
+  cat $project_dir/$host.sh | ${MD5} | awk '{print $1}' > $project_dir/.build/$host.md5
 done
 
 echo "Uploading builds to s3..."

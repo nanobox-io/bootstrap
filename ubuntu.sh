@@ -444,6 +444,9 @@ if [ ! -f /run/iptables ]; then
   # allow nanoagent api connections
   iptables -A INPUT -p tcp --dport 8570 -j ACCEPT
 
+  # allow nanoagent ssh connections
+  iptables -A INPUT -p tcp --dport 1289 -j ACCEPT
+
   # Allow vxlan and docker traffic
   iptables -A INPUT -i redd0 -j ACCEPT
   iptables -A FORWARD -i redd0 -j ACCEPT
