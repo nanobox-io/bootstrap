@@ -91,10 +91,10 @@ start_docker() {
 install_red() {
   if [[ ! -f /usr/bin/red ]]; then
     # fetch packages
-    wget -O /tmp/libbframe_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/libbframe_1.0.0-1_amd64.deb
-    wget -O /tmp/libmsgxchng_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/libmsgxchng_1.0.0-1_amd64.deb
-    wget -O /tmp/red_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/red_1.0.0-1_amd64.deb
-    wget -O /tmp/redd_1.0.0-1_amd64.deb https://s3.amazonaws.com/nanopack.nanobox.io/deb/redd_1.0.0-1_amd64.deb
+    wget -O /tmp/libbframe_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libbframe_1.0.0-1_amd64.deb
+    wget -O /tmp/libmsgxchng_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libmsgxchng_1.0.0-1_amd64.deb
+    wget -O /tmp/red_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/red_1.0.0-1_amd64.deb
+    wget -O /tmp/redd_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/redd_1.0.0-1_amd64.deb
 
     # install dependencies
     apt-get -y install libmsgpack3 libuv0.10
@@ -178,7 +178,7 @@ install_nanoagent() {
       -f \
       -k \
       -o /usr/local/bin/nanoagent \
-      http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent
+      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
 
     # update permissions
     chmod 755 /usr/local/bin/nanoagent
@@ -189,7 +189,7 @@ install_nanoagent() {
       -f \
       -k \
       -o /var/nanobox/nanoagent.md5 \
-      http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent.md5
+      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
 
     # create db
     mkdir -p /var/db/nanoagent
@@ -369,7 +369,7 @@ curl \\
   -k \\
   -s \\
   -o /var/nanobox/nanoagent.md5 \\
-  http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent.md5
+  https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
 
 # compare latest with installed
 latest=\$(cat /var/nanobox/nanoagent.md5)
@@ -385,7 +385,7 @@ if [ ! "\$current" = "\$latest" ]; then
     -f \\
     -k \\
     -o /usr/local/bin/nanoagent \\
-    http://tools.nanobox.io.s3.amazonaws.com/nanoagent/linux/amd64/nanoagent
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent
