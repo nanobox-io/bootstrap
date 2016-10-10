@@ -5,6 +5,8 @@
 # exit if any any command fails
 set -e
 
+set -o pipefail
+
 # todo:
 # set timezone
 # verify
