@@ -2,8 +2,8 @@
 #
 # Boostraps an ubuntu machine to be used as an agent for nanobox
 
-# exit if any any command fails
-set -e
+# exit if any any command fails; be verbose
+set -ex
 
 set -o pipefail
 
@@ -44,6 +44,10 @@ internal_ip() {
 
 internal_iface() {
   echo "eth1"
+}
+
+fix_ps1 {
+  sed -i 's|@\\h|@\\H|g' /root/.bashrc
 }
 
 install_docker() {
@@ -235,7 +239,7 @@ create_modloader() {
 
 start_modloader() {
   if [[ ! `service modloader status | grep start/running` ]]; then
-    # start the nanoagent daemon
+    # start the modloader daemon
     service modloader start
   fi
 }
@@ -411,7 +415,7 @@ respawn
 
 kill timeout 20
 
-exec /usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log
+exec su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log'
 END
 }
 
@@ -498,6 +502,9 @@ for i in "${@}"; do
   esac
 
 done
+
+# silently fix hostname in ps1
+fix_ps1
 
 run install_docker "Installing docker"
 run start_docker "Starting docker daemon"
