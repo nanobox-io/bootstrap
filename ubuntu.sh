@@ -46,7 +46,7 @@ internal_iface() {
   echo "eth1"
 }
 
-fix_ps1 {
+fix_ps1() {
   sed -i 's|@\\h|@\\H|g' /root/.bashrc
 }
 
