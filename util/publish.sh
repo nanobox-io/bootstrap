@@ -5,7 +5,7 @@ MD5=$(which md5 || which md5sum)
 util_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(dirname $util_dir)"
 
-hosts=(ubuntu)
+hosts=(ubuntu ci)
 
 # ensure the build dir exists
 mkdir -p $project_dir/.build

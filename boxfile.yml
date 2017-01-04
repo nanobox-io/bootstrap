@@ -1,0 +1,6 @@
+run.config:
+  engine: none
+  
+  dev_packages:
+    - py27-awscli
+    - coreutils
