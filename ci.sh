@@ -60,19 +60,6 @@ curl \
 chmod +x /usr/local/bin/nanobox
 
 # 4 - Set nanobox configuration
-
-# a) Create the directory
-mkdir -p ~/.nanobox
-# b) Set permissions if this is run as sudo
-if [[ -n $SUDO_USER ]]; then
-  chown -R $SUDO_USER ~/.nanobox
-fi
-# c) Set the config file
-cat > ~/.nanobox/config.yml <<-END
-
-# Set the native linux provider
-provider: "native"
-
-END
+nanobox config set provider native
 
 echo "Nanobox is ready to go!"
