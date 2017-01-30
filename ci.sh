@@ -6,7 +6,7 @@
 
 # run_as_root
 run_as_root() {
-  if [[ "$USER" = "root" ]]; then
+  if [[ "$(whoami)" = "root" ]]; then
     eval "$1"
   else
     sudo bash -c "$1"
