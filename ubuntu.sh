@@ -78,7 +78,7 @@ install_docker() {
     echo "$(docker_defaults)" > /etc/default/docker
 
     # install docker
-    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.0-0~${release}
+    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
   fi
 }
 
