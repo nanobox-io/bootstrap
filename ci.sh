@@ -4,6 +4,24 @@
 # 
 # sudo bash -c "$(curl -fsSL https://s3.amazonaws.com/tools.nanobox.io/bootstrap/ci.sh)"
 
+# run_as_root
+run_as_root() {
+  if [[ "$(whoami)" = "root" ]]; then
+    eval "$1"
+  else
+    sudo bash -c "$1"
+  fi
+}
+
+# run_as_user
+run_as_user() {
+  if [[ -n $SUDO_USER ]]; then
+    su -c "$1" - $SUDO_USER
+  else
+    eval "$1"
+  fi
+}
+
 # 1 - Install and run docker
 # 2 - Download nanobox
 # 3 - Chown nanobox
@@ -14,57 +32,56 @@
 # * For the time being this only supports an Ubuntu installation.
 #   If there is reason to believe other linux distributions are commonly
 #   used for CI/CD solutions, we can switch through them here
-if [[ ! -f /usr/bin/docker && "$USER" = "root" ]]; then
-  # add docker's gpg key
-  apt-key adv \
+if [[ ! -f /usr/bin/docker ]]; then
+  # add docker"s gpg key
+  run_as_root "apt-key adv \
     --keyserver hkp://p80.pool.sks-keyservers.net:80 \
-    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D"
 
   # ensure lsb-release is installed
-  apt-get -y install lsb-release
+  run_as_root "apt-get -y install lsb-release"
 
   release=$(lsb_release -c | awk '{print $2}')
 
   # add the source to our apt sources
-  echo \
-    "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
-      > /etc/apt/sources.list.d/docker.list
+  run_as_root "echo \
+    \"deb https://apt.dockerproject.org/repo ubuntu-${release} main\" \
+      > /etc/apt/sources.list.d/docker.list"
 
   # update the package index
-  apt-get -y update
+  run_as_root "apt-get -y update"
 
   # ensure the old repo is purged
-  apt-get -y purge lxc-docker
+  run_as_root "apt-get -y purge lxc-docker"
 
   # set docker defaults
-  echo "$(docker_defaults)" > /etc/default/docker
+  run_as_root "echo "$(docker_defaults)" > /etc/default/docker"
 
   # install docker
-  apt-get \
-    -y \
-    -o Dpkg::Options::="--force-confdef" \
-    -o Dpkg::Options::="--force-confold" \
-    install \
-    docker-engine=1.12.0-0~${release}
+  run_as_root "apt-get \
+      -y \
+      -o Dpkg::Options::=\"--force-confdef\" \
+      -o Dpkg::Options::=\"--force-confold\" \
+      install \
+      docker-engine=1.12.0-0~${release}"
   
   # allow user to use docker without sudo
-  if [[ -n $SUDO_USER ]]; then
-    groupadd docker
-    usermod -aG docker $SUDO_USER
-  fi
+  run_as_root "groupadd docker"
+  REAL_USER=${SUDO_USER:-$USER}
+  run_as_root "usermod -aG docker $REAL_USER"
 fi
 
 # 2 - Download nanobox
-curl \
+run_as_root "curl \
   -f \
   -k \
   -o /usr/local/bin/nanobox \
-  https://s3.amazonaws.com/tools.nanobox.io/nanobox/v2/linux/amd64/nanobox
-  
+  https://s3.amazonaws.com/tools.nanobox.io/nanobox/v2/linux/amd64/nanobox"
+
 # 3 - Chown nanobox
-chmod +x /usr/local/bin/nanobox
+run_as_root "chmod +x /usr/local/bin/nanobox"
 
 # 4 - Set nanobox configuration
-nanobox config set provider native
+run_as_user "nanobox config set provider native"
 
 echo "Nanobox is ready to go!"
