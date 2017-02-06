@@ -3,13 +3,12 @@
 # Boostraps an ubuntu machine to be used as an agent for nanobox
 
 # exit if any any command fails; be verbose
-set -ex
+set -e
 
 set -o pipefail
 
 # todo:
 # set timezone
-# verify
 
 # set globals to defaults for testing
 TOKEN="123"
@@ -275,6 +274,15 @@ configure_firewall() {
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(firewall_upstart_conf)" > /etc/init/firewall.conf
   fi
+  
+  # create firewall script
+  if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
+    # create the utility
+    echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
+
+    # update permissions
+    chmod 755 /usr/local/bin/build-firewall.sh
+  fi
 }
 
 start_firewall() {
@@ -287,15 +295,6 @@ start_firewall() {
     if [[ ! `service firewall status | grep start/running` ]]; then
       service firewall start
     fi
-  fi
-  
-  # create firewall script
-  if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
-    # create the utility
-    echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
-
-    # update permissions
-    chmod 755 /usr/local/bin/build-firewall.sh
   fi
 }
 
@@ -582,7 +581,7 @@ run() {
 
 format() {
   prefix=$1
-  while read LINE;
+  while read -s LINE;
   do
     echo "${prefix}${LINE}"
   done
