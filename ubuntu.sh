@@ -15,7 +15,7 @@ TOKEN="123"
 VIP="192.168.0.55"
 ID="123"
 COMPONENT=""
-INTERNAL_IFACE="eth0"
+INTERNAL_IFACE="eth1"
 
 ubuntu_version() {
   lsb_release -sd \
