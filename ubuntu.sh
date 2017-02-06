@@ -2,21 +2,20 @@
 #
 # Boostraps an ubuntu machine to be used as an agent for nanobox
 
-# exit if any any command fails; be verbose
-set -ex
+# exit if any any command fails
+set -e
 
 set -o pipefail
 
 # todo:
 # set timezone
-# verify
-# systemd compatibility
 
 # set globals to defaults for testing
 TOKEN="123"
 VIP="192.168.0.55"
 ID="123"
 COMPONENT=""
+INTERNAL_IFACE="eth1"
 
 ubuntu_version() {
   lsb_release -sd \
@@ -25,9 +24,9 @@ ubuntu_version() {
 }
 
 init_system() {
-  if [[ -f /sbin/systemctl ]]; then
+  if [[ -f /sbin/systemctl || -f /bin/systemctl ]]; then
     echo "systemd"
-  elif [[ -f /sbin/initctl ]]; then
+  elif [[ -f /sbin/initctl || -f /bin/initctl ]]; then
     echo "upstart"
   else
     echo "sysvinit"
@@ -36,14 +35,10 @@ init_system() {
 
 internal_ip() {
   ip addr \
-    | grep "$(internal_iface)" \
-      | grep "inet 10\." \
+    | grep "$INTERNAL_IFACE" \
+      | grep "inet " \
         | awk '{print $2}' \
           | awk -F/ '{print $1}'
-}
-
-internal_iface() {
-  echo "eth1"
 }
 
 fix_ps1() {
@@ -119,7 +114,7 @@ install_red() {
 
     # create init entry
     if [[ "$(init_system)" = "systemd" ]]; then
-      todo
+      echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
     elif [[ "$(init_system)" = "upstart" ]]; then
       echo "$(redd_upstart_conf)" > /etc/init/redd.conf
     fi
@@ -133,15 +128,21 @@ install_red() {
 }
 
 start_redd() {
-  if [[ ! `service redd status | grep start/running` ]]; then
-    # start the redd daemon
-    service redd start
-
-    # wait for the docker sock file
-    while [ ! `red ping | grep pong` ]; do
-      sleep 1
-    done
+  # ensure the redd service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service redd status | grep "active (running)"` ]]; then
+      service redd start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service redd status | grep start/running` ]]; then
+      service redd start
+    fi
   fi
+
+  # wait for redd to be available
+  while [ ! `red ping | grep pong` ]; do
+    sleep 1
+  done
 }
 
 install_bridgeutils() {
@@ -163,17 +164,33 @@ create_docker_network() {
 }
 
 create_vxlan_bridge() {
+  # create service entry and configuration
   if [[ "$(init_system)" = "systemd" ]]; then
-    todo
+    echo "$(vxlan_systemd_conf)" > /etc/systemd/system/vxlan.service
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(vxlan_upstart_conf)" > /etc/init/vxlan.conf
+  fi
+  
+  # create bridge script
+  if [[ ! -f /usr/local/bin/enable-vxlan-bridge.sh ]]; then
+    # create the utility
+    echo "$(vxlan_bridge)" > /usr/local/bin/enable-vxlan-bridge.sh
+
+    # update permissions
+    chmod 755 /usr/local/bin/enable-vxlan-bridge.sh
   fi
 }
 
 start_vxlan_bridge() {
-  if [[ ! `service vxlan status | grep start/running` ]]; then
-    # start the vxlan bridge
-    service vxlan start
+  # ensure the vxlan service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service vxlan status | grep "active (running)"` ]]; then
+      service vxlan start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service vxlan status | grep start/running` ]]; then
+      service vxlan start
+    fi
   fi
 }
 
@@ -206,7 +223,7 @@ install_nanoagent() {
 
     # create init script
     if [[ "$(init_system)" = "systemd" ]]; then
-      todo
+      echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
     elif [[ "$(init_system)" = "upstart" ]]; then
       echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
     fi
@@ -231,32 +248,53 @@ start_nanoagent() {
 
 create_modloader() {
   if [[ "$(init_system)" = "systemd" ]]; then
-    todo
+    echo "$(modloader_systemd_conf)" > /etc/systemd/system/modloader.service
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(modloader_upstart_conf)" > /etc/init/modloader.conf
   fi
 }
 
 start_modloader() {
-  if [[ ! `service modloader status | grep start/running` ]]; then
-    # start the modloader daemon
-    service modloader start
+  # ensure the modloader service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service modloader status | grep "active (running)"` ]]; then
+      service modloader start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service modloader status | grep start/running` ]]; then
+      service modloader start
+    fi
   fi
 }
 
 configure_firewall() {
   # create init script
   if [[ "$(init_system)" = "systemd" ]]; then
-    todo
+    echo "$(firewall_systemd_conf)" > /etc/systemd/system/firewall.service
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(firewall_upstart_conf)" > /etc/init/firewall.conf
+  fi
+  
+  # create firewall script
+  if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
+    # create the utility
+    echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
+
+    # update permissions
+    chmod 755 /usr/local/bin/build-firewall.sh
   fi
 }
 
 start_firewall() {
-  if [[ ! `service firewall status | grep start/running` ]]; then
-    # start the firewall bridge
-    service firewall start
+  # ensure the firewall service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service firewall status | grep "active (running)"` ]]; then
+      service firewall start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service firewall status | grep start/running` ]]; then
+      service firewall start
+    fi
   fi
 }
 
@@ -281,7 +319,7 @@ routing-enabled yes
 
 bind 127.0.0.1
 udp-listen-address $(internal_ip)
-vxlan-interface $(internal_iface)
+vxlan-interface $INTERNAL_IFACE
 save-path /var/db/redd
 END
 }
@@ -301,34 +339,60 @@ exec redd /etc/redd.conf
 END
 }
 
+redd_systemd_conf() {
+  cat <<-END
+[Unit]
+Description=Red vxlan daemon
+After=syslog.target network.target
+
+[Service]
+ExecStart=/usr/bin/redd /etc/redd.conf
+Restart=on-failure
+END
+}
+
+vxlan_bridge() {
+  cat <<-END
+#!/bin/bash
+
+# wait for redd0
+while [ ! \`/sbin/ifconfig | /bin/grep redd0\` ]; do
+  sleep 1
+done
+
+# wait for vxlan0
+while [ ! \`/sbin/ifconfig | /bin/grep vxlan0\` ]; do
+  sleep 1
+done
+
+if [ ! \`/sbin/brctl show | /bin/grep redd0 | /bin/grep vxlan0\` ]; then
+  # disable mac address learning to ensure broadcasts are always forwarded
+  /sbin/brctl setageing redd0 0
+
+  # bridge the network onto the red vxlan
+  /sbin/brctl addif redd0 vxlan0
+fi
+
+END
+}
+
 vxlan_upstart_conf() {
   cat <<-END
 description "Red vxlan to docker bridge"
 
 start on runlevel [2345]
 
-pre-start script
-  # wait for redd0
-  while [ ! \`/sbin/ifconfig | /bin/grep redd0\` ]; do
-    sleep 1
-  done
+exec /usr/local/bin/enable-vxlan-bridge.sh
+END
+}
 
-  # wait for vxlan0
-  while [ ! \`/sbin/ifconfig | /bin/grep vxlan0\` ]; do
-    sleep 1
-  done
-end script
+vxlan_systemd_conf() {
+  cat <<-END
+[Unit]
+Description=Red vxlan to docker bridge
 
-script
-  if [ ! \`/sbin/brctl show | /bin/grep redd0 | /bin/grep vxlan0\` ]; then
-    # disable mac address learning to ensure broadcasts are always forwarded
-    /sbin/brctl setageing redd0 0
-
-    # bridge the network onto the red vxlan
-    /sbin/brctl addif redd0 vxlan0
-  fi
-end script
-
+[Service]
+ExecStart=/usr/local/bin/enable-vxlan-bridge.sh
 END
 }
 
@@ -344,6 +408,16 @@ script
 modprobe ip_vs
 
 end script
+END
+}
+
+modloader_systemd_conf() {
+  cat <<-END
+[Unit]
+Description=Nanobox modloader
+
+[Service]
+ExecStart=/sbin/modprobe ip_vs
 END
 }
 
@@ -419,15 +493,21 @@ exec su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.
 END
 }
 
-firewall_upstart_conf() {
+nanoagent_systemd_conf() {
   cat <<-END
-description "Nanobox firewall base lockdown"
+[Unit]
+Description=Nanoagent daemon
+After=syslog.target network.target
 
-start on runlevel [2345]
+[Service]
+ExecStart=/bin/su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log'
+Restart=on-failure
+END
+}
 
-emits firewall
-
-script
+build_firewall() {
+  cat <<-END
+#!/bin/bash
 
 if [ ! -f /run/iptables ]; then
   # flush the current firewall
@@ -463,10 +543,34 @@ if [ ! -f /run/iptables ]; then
   iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
   iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
   touch /run/iptables
-  initctl emit firewall
 fi
+END
+}
+
+firewall_upstart_conf() {
+  cat <<-END
+description "Nanobox firewall base lockdown"
+
+start on runlevel [2345]
+
+emits firewall
+
+script
+
+/usr/local/bin/build-firewall.sh
+initctl emit firewall
 
 end script
+END
+}
+
+firewall_systemd_conf() {
+  cat <<-END
+[Unit]
+Description=Nanobox firewall base lockdown
+
+[Service]
+ExecStart=/usr/local/bin/build-firewall.sh
 END
 }
 
@@ -477,7 +581,7 @@ run() {
 
 format() {
   prefix=$1
-  while read LINE;
+  while read -s LINE;
   do
     echo "${prefix}${LINE}"
   done
@@ -498,6 +602,9 @@ for i in "${@}"; do
       ;;
     component=* )
       COMPONENT=${i#*=}
+      ;;
+    internal-iface=* )
+      INTERNAL_IFACE=${i#*=}
       ;;
   esac
 
