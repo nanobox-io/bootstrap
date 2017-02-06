@@ -2,7 +2,7 @@
 #
 # Boostraps an ubuntu machine to be used as an agent for nanobox
 
-# exit if any any command fails; be verbose
+# exit if any any command fails
 set -e
 
 set -o pipefail
