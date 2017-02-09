@@ -41,8 +41,9 @@ internal_ip() {
           | awk -F/ '{print $1}'
 }
 
+# Use id until we can incorporate app-name as well
 fix_ps1() {
-  sed -i 's|@\\h|@\\H|g' /root/.bashrc
+  sed -i "s|@\\\h|@${ID}|g" /root/.bashrc
 }
 
 install_docker() {
@@ -115,6 +116,7 @@ install_red() {
     # create init entry
     if [[ "$(init_system)" = "systemd" ]]; then
       echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
+      systemctl enable redd.service
     elif [[ "$(init_system)" = "upstart" ]]; then
       echo "$(redd_upstart_conf)" > /etc/init/redd.conf
     fi
@@ -167,18 +169,19 @@ create_vxlan_bridge() {
   # create service entry and configuration
   if [[ "$(init_system)" = "systemd" ]]; then
     echo "$(vxlan_systemd_conf)" > /etc/systemd/system/vxlan.service
+    systemctl enable vxlan.service
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(vxlan_upstart_conf)" > /etc/init/vxlan.conf
   fi
-  
+
   # create bridge script
   if [[ ! -f /usr/local/bin/enable-vxlan-bridge.sh ]]; then
     # create the utility
     echo "$(vxlan_bridge)" > /usr/local/bin/enable-vxlan-bridge.sh
-
-    # update permissions
-    chmod 755 /usr/local/bin/enable-vxlan-bridge.sh
   fi
+
+  # update permissions
+  chmod 755 /usr/local/bin/enable-vxlan-bridge.sh
 }
 
 start_vxlan_bridge() {
@@ -224,6 +227,7 @@ install_nanoagent() {
     # create init script
     if [[ "$(init_system)" = "systemd" ]]; then
       echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
+      systemctl enable nanoagent.service
     elif [[ "$(init_system)" = "upstart" ]]; then
       echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
     fi
@@ -233,56 +237,54 @@ install_nanoagent() {
   if [[ ! -f /usr/local/bin/nanoagent-update ]]; then
     # create the utility
     echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
-
-    # update permissions
-    chmod 755 /usr/local/bin/nanoagent-update
   fi
+
+  # update permissions
+  chmod 755 /usr/local/bin/nanoagent-update
 }
 
 start_nanoagent() {
-  if [[ ! `service nanoagent status | grep start/running` ]]; then
-    # start the nanoagent daemon
-    service nanoagent start
+  # ensure the firewall service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service nanoagent status | grep "active (running)"` ]]; then
+      service nanoagent start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service nanoagent status | grep start/running` ]]; then
+      service nanoagent start
+    fi
   fi
 }
 
-create_modloader() {
+configure_modloader() {
   if [[ "$(init_system)" = "systemd" ]]; then
-    echo "$(modloader_systemd_conf)" > /etc/systemd/system/modloader.service
+    echo 'ip_vs' > /etc/modules-load.d/nanobox-ipvs.conf
   elif [[ "$(init_system)" = "upstart" ]]; then
-    echo "$(modloader_upstart_conf)" > /etc/init/modloader.conf
+    grep 'ip_vs' /tmpetc/modules &> /dev/null || echo 'ip_vs' >> /etc/modules
   fi
 }
 
 start_modloader() {
-  # ensure the modloader service is started
-  if [[ "$(init_system)" = "systemd" ]]; then
-    if [[ ! `service modloader status | grep "active (running)"` ]]; then
-      service modloader start
-    fi
-  elif [[ "$(init_system)" = "upstart" ]]; then
-    if [[ ! `service modloader status | grep start/running` ]]; then
-      service modloader start
-    fi
-  fi
+  modprobe ip_vs
 }
 
 configure_firewall() {
   # create init script
   if [[ "$(init_system)" = "systemd" ]]; then
     echo "$(firewall_systemd_conf)" > /etc/systemd/system/firewall.service
+    systemctl enable firewall.service
   elif [[ "$(init_system)" = "upstart" ]]; then
     echo "$(firewall_upstart_conf)" > /etc/init/firewall.conf
   fi
-  
+
   # create firewall script
   if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
     # create the utility
     echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
-
-    # update permissions
-    chmod 755 /usr/local/bin/build-firewall.sh
   fi
+
+  # update permissions
+  chmod 755 /usr/local/bin/build-firewall.sh
 }
 
 start_firewall() {
@@ -328,6 +330,8 @@ redd_upstart_conf() {
   cat <<-END
 description "Red vxlan daemon"
 
+oom score never
+
 start on (filesystem and net-device-up IFACE!=lo)
 stop on runlevel [!2345]
 
@@ -344,10 +348,15 @@ redd_systemd_conf() {
 [Unit]
 Description=Red vxlan daemon
 After=syslog.target network.target
+Before=vxlan.service
 
 [Service]
+OOMScoreAdjust=-1000
 ExecStart=/usr/bin/redd /etc/redd.conf
 Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
 END
 }
 
@@ -380,6 +389,8 @@ vxlan_upstart_conf() {
   cat <<-END
 description "Red vxlan to docker bridge"
 
+oom score never
+
 start on runlevel [2345]
 
 exec /usr/local/bin/enable-vxlan-bridge.sh
@@ -390,34 +401,16 @@ vxlan_systemd_conf() {
   cat <<-END
 [Unit]
 Description=Red vxlan to docker bridge
+After=redd.service
 
 [Service]
+Type=oneshot
+RemainAfterExit=yes
 ExecStart=/usr/local/bin/enable-vxlan-bridge.sh
-END
-}
+Restart=on-failure
 
-modloader_upstart_conf() {
-  cat <<-END
-description "Nanobox modloader"
-
-start on runlevel [2345]
-
-script
-
-# ensure ip_vs module is loaded
-modprobe ip_vs
-
-end script
-END
-}
-
-modloader_systemd_conf() {
-  cat <<-END
-[Unit]
-Description=Nanobox modloader
-
-[Service]
-ExecStart=/sbin/modprobe ip_vs
+[Install]
+WantedBy=multi-user.target
 END
 }
 
@@ -436,6 +429,7 @@ nanoagent_json() {
 END
 }
 
+# todo: update this
 nanoagent_update() {
   cat <<-END
 #!/bin/bash
@@ -482,6 +476,8 @@ nanoagent_upstart_conf() {
   cat <<-END
 description "Nanoagent daemon"
 
+oom score never
+
 start on (filesystem and net-device-up IFACE!=lo and firewall)
 stop on runlevel [!2345]
 
@@ -489,7 +485,7 @@ respawn
 
 kill timeout 20
 
-exec su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log'
+exec su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log 2>&1'
 END
 }
 
@@ -497,11 +493,15 @@ nanoagent_systemd_conf() {
   cat <<-END
 [Unit]
 Description=Nanoagent daemon
-After=syslog.target network.target
+After=syslog.target network.target redd.service
 
 [Service]
-ExecStart=/bin/su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log'
+OOMScoreAdjust=-1000
+ExecStart=/bin/su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log 2>&1'
 Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
 END
 }
 
@@ -570,7 +570,12 @@ firewall_systemd_conf() {
 Description=Nanobox firewall base lockdown
 
 [Service]
+Type=oneshot
+RemainAfterExit=yes
 ExecStart=/usr/local/bin/build-firewall.sh
+
+[Install]
+WantedBy=multi-user.target
 END
 }
 
@@ -624,7 +629,7 @@ run create_docker_network "Creating isolated docker network"
 run create_vxlan_bridge "Creating red vxlan bridge"
 run start_vxlan_bridge "Starting red vxlan bridge"
 
-run create_modloader "Creating modloader"
+run configure_modloader "Configuring modloader"
 run start_modloader "Starting modloader"
 
 run configure_firewall "Configuring firewall"
