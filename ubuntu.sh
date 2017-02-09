@@ -44,6 +44,7 @@ internal_ip() {
 # Use id until we can incorporate app-name as well
 fix_ps1() {
   sed -i "s|@\\\h|@${ID}|g" /root/.bashrc
+  grep 'export TERM=xterm' /root/.bashrc || echo 'export TERM=xterm' >> /root/.bashrc
 }
 
 install_docker() {
@@ -303,7 +304,7 @@ start_firewall() {
 docker_defaults() {
   size=`df -h / | sed -n 2p | awk '{print $2}'`
   cat <<-END
-DOCKER_OPTS="--iptables=false --storage-opt dm.loopdatasize=$size --storage-opt dm.basesize=$size"
+DOCKER_OPTS="--iptables=false --storage-opt dm.loopdatasize=$size --storage-driver=aufs --storage-opt dm.basesize=$size"
 
 END
 }
@@ -407,7 +408,6 @@ After=redd.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/local/bin/enable-vxlan-bridge.sh
-Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
@@ -434,19 +434,21 @@ nanoagent_update() {
   cat <<-END
 #!/bin/bash
 
+set -e
+
 # extract installed version
-current=\$(cat /var/nanobox/nanoagent.md5)
+current=\$(md5sum /usr/local/bin/nanoagent | awk '{printf \$1}')
 
 # download the latest checksum
 curl \\
   -f \\
   -k \\
   -s \\
-  -o /var/nanobox/nanoagent.md5 \\
+  -o /tmp/nanoagent.md5 \\
   https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
 
 # compare latest with installed
-latest=\$(cat /var/nanobox/nanoagent.md5)
+latest=\$(cat /tmp/nanoagent.md5)
 
 if [ ! "\$current" = "\$latest" ]; then
   echo "Nanoagent is out of date, updating to latest"
@@ -466,6 +468,9 @@ if [ ! "\$current" = "\$latest" ]; then
 
   # start the new version
   service nanoagent start
+
+  # move temporary md5
+  mv /tmp/nanoagent.md5 /var/nanobox/nanoagent.md5
 else
   echo "Nanoagent is up to date."
 fi
