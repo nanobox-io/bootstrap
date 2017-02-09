@@ -366,23 +366,27 @@ vxlan_bridge() {
 #!/bin/bash
 
 # wait for redd0
-while [ ! \`/sbin/ifconfig | /bin/grep redd0\` ]; do
+/sbin/ifconfig | /bin/grep redd0 &> /dev/null
+while [ $? -ne 0 ]; do
   sleep 1
+  /sbin/ifconfig | /bin/grep redd0 &> /dev/null
 done
 
 # wait for vxlan0
-while [ ! \`/sbin/ifconfig | /bin/grep vxlan0\` ]; do
+/sbin/ifconfig | /bin/grep vxlan0 &> /dev/null
+while [ $? -ne 0 ]; do
   sleep 1
+  /sbin/ifconfig | /bin/grep vxlan0 &> /dev/null
 done
 
-if [ ! \`/sbin/brctl show | /bin/grep redd0 | /bin/grep vxlan0\` ]; then
+/sbin/brctl show redd0 | /bin/grep vxlan0 &> /dev/null
+if [ $? -ne 0 ]; then
   # disable mac address learning to ensure broadcasts are always forwarded
   /sbin/brctl setageing redd0 0
 
   # bridge the network onto the red vxlan
   /sbin/brctl addif redd0 vxlan0
 fi
-
 END
 }
 
