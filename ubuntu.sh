@@ -304,7 +304,7 @@ start_firewall() {
 docker_defaults() {
   size=`df -h / | sed -n 2p | awk '{print $2}'`
   cat <<-END
-DOCKER_OPTS="--iptables=false --storage-opt dm.loopdatasize=$size --storage-driver=aufs --storage-opt dm.basesize=$size"
+DOCKER_OPTS="--iptables=false --storage-driver=aufs"
 
 END
 }
