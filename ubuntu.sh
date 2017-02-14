@@ -42,62 +42,60 @@ fix_ps1() {
 }
 
 install_docker() {
-  # install docker if not already installed
-  if [[ ! -f /usr/bin/docker ]]; then
-    # add docker's gpg key
-    apt-key adv \
-      --keyserver hkp://p80.pool.sks-keyservers.net:80 \
-      --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+  # install version of docker nanoagent is using
+  # add docker's gpg key
+  apt-key adv \
+    --keyserver hkp://p80.pool.sks-keyservers.net:80 \
+    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
-    # ensure lsb-release is installed
-    which lsb_release || apt-get -y install lsb-release
+  # ensure lsb-release is installed
+  which lsb_release || apt-get -y install lsb-release
 
-    release=$(lsb_release -cs)
+  release=$(lsb_release -cs)
 
-    # add the source to our apt sources
-    echo \
-      "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
-        > /etc/apt/sources.list.d/docker.list
+  # add the source to our apt sources
+  echo \
+    "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
+      > /etc/apt/sources.list.d/docker.list
 
-    # update the package index
-    apt-get -y update
+  # update the package index
+  apt-get -y update
 
-    # ensure the old repo is purged
-    apt-get -y purge lxc-docker
+  # ensure the old repo is purged
+  apt-get -y purge lxc-docker docker-engine
 
-    # install aufs kernel module
-    if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
-      # make parent directory
-      [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
+  # install aufs kernel module
+  if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
+    # make parent directory
+    [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
 
-      # get aufs kernel module
-      wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
-      https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
-      sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
-    fi
+    # get aufs kernel module
+    wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
+    https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
+    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
+  fi
 
-    # enable use of aufs
-    modprobe aufs || insmod /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko
+  # enable use of aufs
+  modprobe aufs || insmod /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko
 
-    # set docker options
-    cat > /etc/default/docker <<'END'
+  # set docker options
+  cat > /etc/default/docker <<'END'
 DOCKER_OPTS="--iptables=false --storage-driver=aufs"
 END
 
-    if [[ "$(init_system)" = "systemd" ]]; then
-      # use docker options
-      [ -d /lib/systemd/system/docker.service.d ] || mkdir /lib/systemd/system/docker.service.d
-      cat > /lib/systemd/system/docker.service.d/env.conf <<'END'
+  if [[ "$(init_system)" = "systemd" ]]; then
+    # use docker options
+    [ -d /lib/systemd/system/docker.service.d ] || mkdir /lib/systemd/system/docker.service.d
+    cat > /lib/systemd/system/docker.service.d/env.conf <<'END'
 [Service]
 EnvironmentFile=/etc/default/docker
 ExecStart=
 ExecStart=/usr/bin/dockerd -H fd:// $DOCKER_OPTS
 END
-    fi
-
-    # install docker
-    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
   fi
+
+  # install docker
+  apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
 }
 
 start_docker() {
