@@ -65,11 +65,19 @@ install_docker() {
     # ensure the old repo is purged
     apt-get -y purge lxc-docker
 
-    # meta package for linux-image-extra-$(uname -r)
-    [ -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ] || sudo apt-get install -y linux-image-extra-virtual
+    # install aufs kernel module
+    if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
+      # make parent directory
+      [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
+
+      # get aufs kernel module
+      wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
+      https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
+      sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
+    fi
 
     # enable use of aufs
-    modprobe aufs
+    modprobe aufs || insmod /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko
 
     # set docker options
     cat > /etc/default/docker <<'END'
