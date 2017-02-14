@@ -17,12 +17,6 @@ ID="123"
 COMPONENT=""
 INTERNAL_IFACE="eth1"
 
-ubuntu_version() {
-  lsb_release -sd \
-    | awk '{print $2}' \
-      | awk -F. '{print $1"."$2}'
-}
-
 init_system() {
   if [[ -f /sbin/systemctl || -f /bin/systemctl ]]; then
     echo "systemd"
@@ -56,9 +50,9 @@ install_docker() {
       --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
     # ensure lsb-release is installed
-    apt-get -y install lsb-release
+    which lsb_release || apt-get -y install lsb-release
 
-    release=$(lsb_release -c | awk '{print $2}')
+    release=$(lsb_release -cs)
 
     # add the source to our apt sources
     echo \
@@ -71,8 +65,27 @@ install_docker() {
     # ensure the old repo is purged
     apt-get -y purge lxc-docker
 
-    # set docker defaults
-    echo "$(docker_defaults)" > /etc/default/docker
+    # meta package for linux-image-extra-$(uname -r)
+    [ -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ] || sudo apt-get install -y linux-image-extra-virtual
+
+    # enable use of aufs
+    modprobe aufs
+
+    # set docker options
+    cat > /etc/default/docker <<'END'
+DOCKER_OPTS="--iptables=false --storage-driver=aufs"
+END
+
+    if [[ "$(init_system)" = "systemd" ]]; then
+      # use docker options
+      [ -d /lib/systemd/system/docker.service.d ] || mkdir /lib/systemd/system/docker.service.d
+      cat > /lib/systemd/system/docker.service.d/env.conf <<'END'
+[Service]
+EnvironmentFile=/etc/default/docker
+ExecStart=
+ExecStart=/usr/bin/dockerd -H fd:// $DOCKER_OPTS
+END
+    fi
 
     # install docker
     apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
@@ -80,15 +93,21 @@ install_docker() {
 }
 
 start_docker() {
-  if [[ ! `service docker status | grep start/running` ]]; then
-    # start the docker daemon
-    service docker start
-
-    # wait for the docker sock file
-    while [ ! -S /var/run/docker.sock ]; do
-      sleep 1
-    done
+  # ensure the docker service is started
+  if [[ "$(init_system)" = "systemd" ]]; then
+    if [[ ! `service docker status | grep "active (running)"` ]]; then
+      service docker start
+    fi
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    if [[ ! `service docker status | grep start/running` ]]; then
+      service docker start
+    fi
   fi
+
+  # wait for the docker sock file
+  while [ ! -S /var/run/docker.sock ]; do
+    sleep 1
+  done
 }
 
 install_red() {
@@ -301,16 +320,8 @@ start_firewall() {
   fi
 }
 
-docker_defaults() {
-  size=`df -h / | sed -n 2p | awk '{print $2}'`
-  cat <<-END
-DOCKER_OPTS="--iptables=false --storage-driver=aufs"
-
-END
-}
-
 redd_conf() {
-  cat <<-END
+  cat <<END
 daemonize no
 pidfile /var/run/redd.pid
 logfile /var/log/redd.log
@@ -328,7 +339,7 @@ END
 }
 
 redd_upstart_conf() {
-  cat <<-END
+  cat <<'END'
 description "Red vxlan daemon"
 
 oom score never
@@ -345,7 +356,7 @@ END
 }
 
 redd_systemd_conf() {
-  cat <<-END
+  cat <<'END'
 [Unit]
 Description=Red vxlan daemon
 After=syslog.target network.target
@@ -362,25 +373,25 @@ END
 }
 
 vxlan_bridge() {
-  cat <<-END
+  cat <<'END'
 #!/bin/bash
 
 # wait for redd0
 /sbin/ifconfig | /bin/grep redd0 &> /dev/null
-while [ \$? -ne 0 ]; do
+while [ $? -ne 0 ]; do
   sleep 1
   /sbin/ifconfig | /bin/grep redd0 &> /dev/null
 done
 
 # wait for vxlan0
 /sbin/ifconfig | /bin/grep vxlan0 &> /dev/null
-while [ \$? -ne 0 ]; do
+while [ $? -ne 0 ]; do
   sleep 1
   /sbin/ifconfig | /bin/grep vxlan0 &> /dev/null
 done
 
 /sbin/brctl show redd0 | /bin/grep vxlan0 &> /dev/null
-if [ \$? -ne 0 ]; then
+if [ $? -ne 0 ]; then
   # disable mac address learning to ensure broadcasts are always forwarded
   /sbin/brctl setageing redd0 0
 
@@ -391,7 +402,7 @@ END
 }
 
 vxlan_upstart_conf() {
-  cat <<-END
+  cat <<'END'
 description "Red vxlan to docker bridge"
 
 oom score never
@@ -403,7 +414,7 @@ END
 }
 
 vxlan_systemd_conf() {
-  cat <<-END
+  cat <<'END'
 [Unit]
 Description=Red vxlan to docker bridge
 After=redd.service
@@ -419,7 +430,7 @@ END
 }
 
 nanoagent_json() {
-  cat <<-END
+  cat <<END
 {
   "host_id": "$ID",
   "token":"$TOKEN",
@@ -433,38 +444,37 @@ nanoagent_json() {
 END
 }
 
-# todo: update this
 nanoagent_update() {
-  cat <<-END
+  cat <<'END'
 #!/bin/bash
 
 set -e
 
 # extract installed version
-current=\$(md5sum /usr/local/bin/nanoagent | awk '{printf \$1}')
+current=$(md5sum /usr/local/bin/nanoagent | awk '{printf $1}')
 
 # download the latest checksum
-curl \\
-  -f \\
-  -k \\
-  -s \\
-  -o /tmp/nanoagent.md5 \\
+curl \
+  -f \
+  -k \
+  -s \
+  -o /tmp/nanoagent.md5 \
   https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
 
 # compare latest with installed
-latest=\$(cat /tmp/nanoagent.md5)
+latest=$(cat /tmp/nanoagent.md5)
 
-if [ ! "\$current" = "\$latest" ]; then
+if [ ! "$current" = "$latest" ]; then
   echo "Nanoagent is out of date, updating to latest"
 
   # stop the running Nanoagent
   service nanoagent stop
 
   # download the latest version
-  curl \\
-    -f \\
-    -k \\
-    -o /usr/local/bin/nanoagent \\
+  curl \
+    -f \
+    -k \
+    -o /usr/local/bin/nanoagent \
     https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
 
   # update permissions
@@ -482,7 +492,7 @@ END
 }
 
 nanoagent_upstart_conf() {
-  cat <<-END
+  cat <<'END'
 description "Nanoagent daemon"
 
 oom score never
@@ -499,7 +509,7 @@ END
 }
 
 nanoagent_systemd_conf() {
-  cat <<-END
+  cat <<'END'
 [Unit]
 Description=Nanoagent daemon
 After=syslog.target network.target redd.service
@@ -515,7 +525,7 @@ END
 }
 
 build_firewall() {
-  cat <<-END
+  cat <<'END'
 #!/bin/bash
 
 if [ ! -f /run/iptables ]; then
@@ -557,7 +567,7 @@ END
 }
 
 firewall_upstart_conf() {
-  cat <<-END
+  cat <<'END'
 description "Nanobox firewall base lockdown"
 
 start on runlevel [2345]
@@ -574,7 +584,7 @@ END
 }
 
 firewall_systemd_conf() {
-  cat <<-END
+  cat <<'END'
 [Unit]
 Description=Nanobox firewall base lockdown
 
