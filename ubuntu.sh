@@ -167,6 +167,10 @@ start_redd() {
   done
 }
 
+add_local_host_to_redd() {
+  red add-node 127.0.0.1
+}
+
 install_bridgeutils() {
   if [[ ! -f /sbin/brctl ]]; then
     apt-get install -y bridge-utils
@@ -642,6 +646,7 @@ run start_docker "Starting docker daemon"
 
 run install_red "Installing red"
 run start_redd "Starting red daemon"
+run add_local_host_to_redd "Adding localhost to red"
 
 run install_bridgeutils "Installing ethernet bridging utilities"
 run create_docker_network "Creating isolated docker network"
