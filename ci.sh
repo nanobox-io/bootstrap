@@ -37,42 +37,44 @@ docker_defaults() {
 #   If there is reason to believe other linux distributions are commonly
 #   used for CI/CD solutions, we can switch through them here
 
-# add docker"s gpg key
-run_as_root "apt-key adv \
-  --keyserver hkp://p80.pool.sks-keyservers.net:80 \
-  --recv-keys 58118E89F3A912897C070ADBF76221572C52609D"
+if [[ ! -f /usr/bin/docker ]]; then
+  # add docker"s gpg key
+  run_as_root "apt-key adv \
+    --keyserver hkp://p80.pool.sks-keyservers.net:80 \
+    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D"
 
-# ensure lsb-release is installed
-which lsb_release || run_as_root "apt-get -y install lsb-release"
+  # ensure lsb-release is installed
+  which lsb_release || run_as_root "apt-get -y install lsb-release"
 
-release=$(lsb_release -cs)
+  release=$(lsb_release -cs)
 
-# add the source to our apt sources
-run_as_root "echo \
-  \"deb https://apt.dockerproject.org/repo ubuntu-${release} main\" \
-    > /etc/apt/sources.list.d/docker.list"
+  # add the source to our apt sources
+  run_as_root "echo \
+    \"deb https://apt.dockerproject.org/repo ubuntu-${release} main\" \
+      > /etc/apt/sources.list.d/docker.list"
 
-# update the package index
-run_as_root "apt-get -y update"
+  # update the package index
+  run_as_root "apt-get -y update"
 
-# ensure the old repo is purged
-run_as_root "apt-get -y purge lxc-docker docker-engine"
+  # ensure the old repo is purged
+  run_as_root "apt-get -y purge lxc-docker docker-engine"
 
-# set docker defaults
-run_as_root "echo $(docker_defaults) > /etc/default/docker"
+  # set docker defaults
+  run_as_root "echo $(docker_defaults) > /etc/default/docker"
 
-# install docker
-run_as_root "apt-get \
-    -y \
-    -o Dpkg::Options::=\"--force-confdef\" \
-    -o Dpkg::Options::=\"--force-confold\" \
-    install \
-    docker-engine=1.12.6-0~ubuntu-${release}"
+  # install docker
+  run_as_root "apt-get \
+      -y \
+      -o Dpkg::Options::=\"--force-confdef\" \
+      -o Dpkg::Options::=\"--force-confold\" \
+      install \
+      docker-engine=1.12.6-0~ubuntu-${release}"
 
-# allow user to use docker without sudo
-run_as_root "groupadd docker"
-REAL_USER=${SUDO_USER:-$USER}
-run_as_root "usermod -aG docker $REAL_USER"
+  # allow user to use docker without sudo needs to be conditional
+  run_as_root "groupadd docker"
+  REAL_USER=${SUDO_USER:-$USER}
+  run_as_root "usermod -aG docker $REAL_USER"
+fi
 
 # 2 - Download nanobox
 run_as_root "curl \

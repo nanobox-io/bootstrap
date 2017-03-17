@@ -76,7 +76,7 @@ install_docker() {
   fi
 
   # enable use of aufs
-  modprobe aufs || insmod /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko
+  modprobe aufs || ( depmod && modprobe aufs )
 
   # set docker options
   cat > /etc/default/docker <<'END'
