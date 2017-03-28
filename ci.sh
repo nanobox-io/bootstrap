@@ -89,4 +89,6 @@ run_as_root "chmod +x /usr/local/bin/nanobox"
 # 4 - Set nanobox configuration
 run_as_user "nanobox config set provider native"
 
+run_as_user "nanobox config set ci-mode true"
+
 echo "Nanobox is ready to go!"
