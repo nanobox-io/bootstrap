@@ -330,6 +330,29 @@ start_firewall() {
   fi
 }
 
+# conifgure automatic updates to not update kernel or docker
+configure_updates() {
+  cat > /etc/apt/apt.conf.d/50unattended-upgrades <<'END'
+// Automatically upgrade packages from these (origin:archive) pairs
+Unattended-Upgrade::Allowed-Origins {
+    "${distro_id}:${distro_codename}";
+    "${distro_id}:${distro_codename}-security";
+};
+
+// List of packages to not update (regexp are supported)
+Unattended-Upgrade::Package-Blacklist {
+    "docker-engine";
+    "linux-image-*";
+    "linux-headers-*";
+    "linux-virtual";
+//  "linux-image-extra-virtual";
+//  "linux-image-virtual";
+//  "linux-headers-generic";
+//  "linux-headers-virtual";
+};
+END
+}
+
 redd_conf() {
   cat <<END
 daemonize no
@@ -646,6 +669,8 @@ done
 
 # silently fix hostname in ps1
 fix_ps1
+
+run configure_updates "Configuring automatic updates"
 
 run install_docker "Installing docker"
 run start_docker "Starting docker daemon"
