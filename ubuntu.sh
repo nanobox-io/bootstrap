@@ -44,8 +44,9 @@ fix_ps1() {
 install_docker() {
   # install version of docker nanoagent is using
   # add docker's gpg key
+  # curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - # will need to use when we update nanoagent to use docker-ce 17.xx
   apt-key adv \
-    --keyserver hkp://p80.pool.sks-keyservers.net:80 \
+    --keyserver hkp://pgp.mit.edu:80 \
     --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
   # ensure lsb-release is installed
@@ -54,6 +55,8 @@ install_docker() {
   release=$(lsb_release -cs)
 
   # add the source to our apt sources
+  # add-apt-repository \
+  #   "deb [arch=amd64] https://download.docker.com/linux/ubuntu ${release} stable" # for docker-ce 17.xx
   echo \
     "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
       > /etc/apt/sources.list.d/docker.list
