@@ -45,7 +45,8 @@ install_docker() {
   # install version of docker nanoagent is using
   # add docker's gpg key
   # curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - # will need to use when we update nanoagent to use docker-ce 17.xx
-  apt-key adv \
+  echo '   -> adding docker keyserver'
+  time apt-key adv \
     --keyserver hkp://pgp.mit.edu:80 \
     --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
@@ -62,10 +63,12 @@ install_docker() {
       > /etc/apt/sources.list.d/docker.list
 
   # update the package index
-  apt-get -y update
+  echo '   -> apt-get update'
+  time apt-get -y update
 
   # ensure the old repo is purged
-  apt-get -y purge lxc-docker docker-engine
+  echo '   -> remove old docker'
+  time apt-get -y purge lxc-docker docker-engine
 
   # install aufs kernel module
   if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
@@ -79,7 +82,8 @@ install_docker() {
   fi
 
   # enable use of aufs
-  modprobe aufs || ( depmod && modprobe aufs )
+  echo '   -> install aufs'
+  modprobe aufs || ( time depmod && time modprobe aufs )
 
   # set docker options
   cat > /etc/default/docker <<'END'
@@ -98,7 +102,8 @@ END
   fi
 
   # install docker
-  apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
+  echo '   -> install docker'
+  time apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
 }
 
 start_docker() {
@@ -353,6 +358,14 @@ Unattended-Upgrade::Package-Blacklist {
 //  "linux-headers-generic";
 //  "linux-headers-virtual";
 };
+END
+
+# disable auto-updates alltogether
+  cat > /etc/apt/apt.conf.d/10periodic <<'END'
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::AutocleanInterval "0";
 END
 }
 
