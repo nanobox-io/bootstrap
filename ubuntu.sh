@@ -106,6 +106,66 @@ END
   time apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
 }
 
+# install version of docker nanoagent is using
+fast_install_docker() {
+
+  # ensure lsb-release is installed
+  which lsb_release || apt-get -y install lsb-release
+
+  release=$(lsb_release -cs)
+
+  echo '   -> fetch docker'
+  time wget -O /tmp/docker-engine_1.12.6.deb \
+    https://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_1.12.6-0~ubuntu-${release}_amd64.deb
+
+  # update the package index
+  echo '   -> apt-get update'
+  time apt-get -y update
+
+  # ensure the old repo is purged
+  echo '   -> remove old docker'
+  time apt-get -y purge lxc-docker docker-engine
+
+  # install docker deps
+  echo '   -> install docker deps'
+  time apt-get -y install libltdl7
+
+  # install aufs kernel module
+  if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
+    # make parent directory
+    [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
+
+    # get aufs kernel module
+    wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
+    https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
+    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
+  fi
+
+  # enable use of aufs
+  echo '   -> install aufs'
+  modprobe aufs || ( time depmod && time modprobe aufs )
+
+  # set docker options
+  cat > /etc/default/docker <<'END'
+DOCKER_OPTS="--iptables=false --storage-driver=aufs"
+END
+
+  if [[ "$(init_system)" = "systemd" ]]; then
+    # use docker options
+    [ -d /lib/systemd/system/docker.service.d ] || mkdir /lib/systemd/system/docker.service.d
+    cat > /lib/systemd/system/docker.service.d/env.conf <<'END'
+[Service]
+EnvironmentFile=/etc/default/docker
+ExecStart=
+ExecStart=/usr/bin/dockerd -H fd:// $DOCKER_OPTS
+END
+  fi
+
+  # install docker
+  echo '   -> install docker'
+  time dpkg --force-confdef --force-confold -i /tmp/docker-engine_1.12.6.deb
+}
+
 start_docker() {
   # ensure the docker service is started
   if [[ "$(init_system)" = "systemd" ]]; then
@@ -125,42 +185,44 @@ start_docker() {
 }
 
 install_red() {
-  if [[ ! -f /usr/bin/red ]]; then
+  if [[ ! -f /tmp/redd_1.0.0-1_amd64.deb ]]; then
     # fetch packages
     wget -O /tmp/libbframe_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libbframe_1.0.0-1_amd64.deb
     wget -O /tmp/libmsgxchng_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libmsgxchng_1.0.0-1_amd64.deb
     wget -O /tmp/red_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/red_1.0.0-1_amd64.deb
     wget -O /tmp/redd_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/redd_1.0.0-1_amd64.deb
+  fi
 
     # install dependencies
     apt-get -y install libmsgpack3 libuv0.10
 
+  if [[ ! -f /usr/bin/redd ]]; then
     # install packages
     dpkg -i /tmp/libbframe_1.0.0-1_amd64.deb
     dpkg -i /tmp/libmsgxchng_1.0.0-1_amd64.deb
     dpkg -i /tmp/red_1.0.0-1_amd64.deb
     dpkg -i /tmp/redd_1.0.0-1_amd64.deb
-
-    # configure redd
-    echo "$(redd_conf)" > /etc/redd.conf
-
-    # ensure the redd db path exists
-    mkdir -p /var/db/redd
-
-    # create init entry
-    if [[ "$(init_system)" = "systemd" ]]; then
-      echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
-      systemctl enable redd.service
-    elif [[ "$(init_system)" = "upstart" ]]; then
-      echo "$(redd_upstart_conf)" > /etc/init/redd.conf
-    fi
-
-    # remove cruft
-    rm -f /tmp/libbframe_1.0.0-1_amd64.deb
-    rm -f /tmp/libmsgxchng_1.0.0-1_amd64.deb
-    rm -f /tmp/red_1.0.0-1_amd64.deb
-    rm -f /tmp/redd_1.0.0-1_amd64.deb
   fi
+
+  # configure redd
+  echo "$(redd_conf)" > /etc/redd.conf
+
+  # ensure the redd db path exists
+  mkdir -p /var/db/redd
+
+  # create init entry
+  if [[ "$(init_system)" = "systemd" ]]; then
+    echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
+    systemctl enable redd.service
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(redd_upstart_conf)" > /etc/init/redd.conf
+  fi
+
+  # remove cruft
+  rm -f /tmp/libbframe_1.0.0-1_amd64.deb
+  rm -f /tmp/libmsgxchng_1.0.0-1_amd64.deb
+  rm -f /tmp/red_1.0.0-1_amd64.deb
+  rm -f /tmp/redd_1.0.0-1_amd64.deb
 }
 
 start_redd() {
@@ -243,10 +305,12 @@ install_nanoagent() {
       -k \
       -o /usr/local/bin/nanoagent \
       https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
+  fi
 
-    # update permissions
-    chmod 755 /usr/local/bin/nanoagent
+  # update permissions
+  chmod 755 /usr/local/bin/nanoagent
 
+  if [[ ! -f /var/nanobox/nanoagent.md5 ]]; then
     # download md5
     mkdir -p /var/nanobox
     curl \
@@ -254,21 +318,21 @@ install_nanoagent() {
       -k \
       -o /var/nanobox/nanoagent.md5 \
       https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+  fi
 
-    # create db
-    mkdir -p /var/db/nanoagent
+  # create db
+  mkdir -p /var/db/nanoagent
 
-    # generate config file
-    mkdir -p /etc/nanoagent
-    echo "$(nanoagent_json)" > /etc/nanoagent/config.json
+  # generate config file
+  mkdir -p /etc/nanoagent
+  echo "$(nanoagent_json)" > /etc/nanoagent/config.json
 
-    # create init script
-    if [[ "$(init_system)" = "systemd" ]]; then
-      echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
-      systemctl enable nanoagent.service
-    elif [[ "$(init_system)" = "upstart" ]]; then
-      echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
-    fi
+  # create init script
+  if [[ "$(init_system)" = "systemd" ]]; then
+    echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
+    systemctl enable nanoagent.service
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
   fi
 
   # create update script
@@ -688,7 +752,7 @@ fix_ps1
 
 run configure_updates "Configuring automatic updates"
 
-run install_docker "Installing docker"
+run fast_install_docker "Installing docker"
 run start_docker "Starting docker daemon"
 
 run install_red "Installing red"
