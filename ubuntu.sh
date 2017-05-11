@@ -233,26 +233,27 @@ start_vxlan_bridge() {
 }
 
 install_nanoagent() {
-  if [[ ! -f /usr/local/bin/nanoagent ]]; then
-    # download nanoagent
-    curl \
-      -f \
-      -k \
-      -o /usr/local/bin/nanoagent \
-      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
-  fi
+  # download nanoagent
+  curl \
+    -f \
+    -k \
+    -o /usr/local/bin/nanoagent \
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent
 
-  if [[ ! -f /var/nanobox/nanoagent.md5 ]]; then
-    # download md5
-    mkdir -p /var/nanobox
-    curl \
-      -f \
-      -k \
-      -o /var/nanobox/nanoagent.md5 \
-      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+  # download md5
+  mkdir -p /var/nanobox
+  curl \
+    -f \
+    -k \
+    -o /var/nanobox/nanoagent.md5 \
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+
+  if [[ "$(cat /var/nanobox/nanoagent.md5)" != "$(md5sum /usr/local/bin/nanoagent | cut -f1 -d' ')" ]]; then
+    echo "nanoagent MD5s do not match!";
+    exit 1;
   fi
 
   # create db
@@ -271,10 +272,7 @@ install_nanoagent() {
   fi
 
   # create update script
-  if [[ ! -f /usr/local/bin/nanoagent-update ]]; then
-    # create the utility
-    echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
-  fi
+  echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent-update
@@ -315,10 +313,7 @@ configure_firewall() {
   fi
 
   # create firewall script
-  if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
-    # create the utility
-    echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
-  fi
+  echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
 
   # update permissions
   chmod 755 /usr/local/bin/build-firewall.sh
