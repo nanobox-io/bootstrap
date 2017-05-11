@@ -41,73 +41,8 @@ fix_ps1() {
   grep 'export TERM=xterm' /root/.bashrc || echo 'export TERM=xterm' >> /root/.bashrc
 }
 
-install_docker() {
-  # install version of docker nanoagent is using
-  # add docker's gpg key
-  # curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - # will need to use when we update nanoagent to use docker-ce 17.xx
-  echo '   -> adding docker keyserver'
-  time apt-key adv \
-    --keyserver hkp://pgp.mit.edu:80 \
-    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-
-  # ensure lsb-release is installed
-  which lsb_release || apt-get -y install lsb-release
-
-  release=$(lsb_release -cs)
-
-  # add the source to our apt sources
-  # add-apt-repository \
-  #   "deb [arch=amd64] https://download.docker.com/linux/ubuntu ${release} stable" # for docker-ce 17.xx
-  echo \
-    "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
-      > /etc/apt/sources.list.d/docker.list
-
-  # update the package index
-  echo '   -> apt-get update'
-  time apt-get -y update
-
-  # ensure the old repo is purged
-  echo '   -> remove old docker'
-  time apt-get -y purge lxc-docker docker-engine
-
-  # install aufs kernel module
-  if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
-    # make parent directory
-    [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
-
-    # get aufs kernel module
-    wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
-    https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
-    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
-  fi
-
-  # enable use of aufs
-  echo '   -> install aufs'
-  modprobe aufs || ( time depmod && time modprobe aufs )
-
-  # set docker options
-  cat > /etc/default/docker <<'END'
-DOCKER_OPTS="--iptables=false --storage-driver=aufs"
-END
-
-  if [[ "$(init_system)" = "systemd" ]]; then
-    # use docker options
-    [ -d /lib/systemd/system/docker.service.d ] || mkdir /lib/systemd/system/docker.service.d
-    cat > /lib/systemd/system/docker.service.d/env.conf <<'END'
-[Service]
-EnvironmentFile=/etc/default/docker
-ExecStart=
-ExecStart=/usr/bin/dockerd -H fd:// $DOCKER_OPTS
-END
-  fi
-
-  # install docker
-  echo '   -> install docker'
-  time apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
-}
-
 # install version of docker nanoagent is using
-fast_install_docker() {
+install_docker() {
 
   # ensure lsb-release is installed
   which lsb_release || apt-get -y install lsb-release
@@ -163,7 +98,7 @@ END
 
   # install docker
   echo '   -> install docker'
-  time dpkg --force-confdef --force-confold -i /tmp/docker-engine_1.12.6.deb
+  time dpkg --force-confdef --force-confold -i /tmp/docker-engine_1.12.6.deb || apt-get install -yf
 }
 
 start_docker() {
@@ -752,7 +687,7 @@ fix_ps1
 
 run configure_updates "Configuring automatic updates"
 
-run fast_install_docker "Installing docker"
+run install_docker "Installing docker"
 run start_docker "Starting docker daemon"
 
 run install_red "Installing red"
