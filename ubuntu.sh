@@ -59,7 +59,7 @@ install_docker() {
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
-  time apt-get -y purge lxc-docker docker-engine
+  time dpkg --purge lxc-docker docker-engine
 
   # install docker deps
   echo '   -> install docker deps'
