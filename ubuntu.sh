@@ -44,6 +44,10 @@ fix_ps1() {
 # install version of docker nanoagent is using
 install_docker() {
 
+  # update the package index
+  echo '   -> apt-get update'
+  time apt-get -y update
+
   # ensure lsb-release is installed
   which lsb_release || apt-get -y install lsb-release
 
@@ -52,10 +56,6 @@ install_docker() {
   echo '   -> fetch docker'
   time wget -O /tmp/docker-engine_1.12.6.deb \
     https://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_1.12.6-0~ubuntu-${release}_amd64.deb
-
-  # update the package index
-  echo '   -> apt-get update'
-  time apt-get -y update
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
@@ -128,8 +128,8 @@ install_red() {
     wget -O /tmp/redd_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/redd_1.0.0-1_amd64.deb
   fi
 
-    # install dependencies
-    apt-get -y install libmsgpack3 libuv0.10
+  # install dependencies
+  apt-get -y install libmsgpack3 libuv0.10
 
   if [[ ! -f /usr/bin/redd ]]; then
     # install packages
@@ -334,6 +334,14 @@ start_firewall() {
 
 # conifgure automatic updates to not update kernel or docker
 configure_updates() {
+  # Remove extra architectures (will exit 0 but display warning if none)
+  # Linode servers have i386 added for convenience(?) but we want fast
+  # apt updates.
+  dpkg --remove-architecture "$(dpkg --print-foreign-architectures)"
+
+  # trim extra sources for faster apt updates
+  sed -i -r '/(-src|backports)/d' /etc/apt/sources.list
+
   cat > /etc/apt/apt.conf.d/50unattended-upgrades <<'END'
 // Automatically upgrade packages from these (origin:archive) pairs
 Unattended-Upgrade::Allowed-Origins {
