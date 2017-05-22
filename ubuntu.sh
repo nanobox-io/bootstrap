@@ -41,34 +41,29 @@ fix_ps1() {
   grep 'export TERM=xterm' /root/.bashrc || echo 'export TERM=xterm' >> /root/.bashrc
 }
 
+# install version of docker nanoagent is using
 install_docker() {
-  # install version of docker nanoagent is using
-  # add docker's gpg key
-  # curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - # will need to use when we update nanoagent to use docker-ce 17.xx
-  echo '   -> adding docker keyserver'
-  time apt-key adv \
-    --keyserver hkp://pgp.mit.edu:80 \
-    --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+
+  # update the package index
+  echo '   -> apt-get update'
+  time apt-get -y update
 
   # ensure lsb-release is installed
   which lsb_release || apt-get -y install lsb-release
 
   release=$(lsb_release -cs)
 
-  # add the source to our apt sources
-  # add-apt-repository \
-  #   "deb [arch=amd64] https://download.docker.com/linux/ubuntu ${release} stable" # for docker-ce 17.xx
-  echo \
-    "deb https://apt.dockerproject.org/repo ubuntu-${release} main" \
-      > /etc/apt/sources.list.d/docker.list
-
-  # update the package index
-  echo '   -> apt-get update'
-  time apt-get -y update
+  echo '   -> fetch docker'
+  time wget -O /tmp/docker-engine_1.12.6.deb \
+    https://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_1.12.6-0~ubuntu-${release}_amd64.deb
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
-  time apt-get -y purge lxc-docker docker-engine
+  time dpkg --purge lxc-docker docker-engine
+
+  # install docker deps
+  echo '   -> install docker deps'
+  time apt-get -y install libltdl7
 
   # install aufs kernel module
   if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
@@ -103,7 +98,7 @@ END
 
   # install docker
   echo '   -> install docker'
-  time apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install docker-engine=1.12.6-0~ubuntu-${release}
+  time dpkg --force-confdef --force-confold -i /tmp/docker-engine_1.12.6.deb || apt-get install -yf
 }
 
 start_docker() {
@@ -125,42 +120,44 @@ start_docker() {
 }
 
 install_red() {
-  if [[ ! -f /usr/bin/red ]]; then
+  if [[ ! -f /tmp/redd_1.0.0-1_amd64.deb ]]; then
     # fetch packages
     wget -O /tmp/libbframe_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libbframe_1.0.0-1_amd64.deb
     wget -O /tmp/libmsgxchng_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/libmsgxchng_1.0.0-1_amd64.deb
     wget -O /tmp/red_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/red_1.0.0-1_amd64.deb
     wget -O /tmp/redd_1.0.0-1_amd64.deb https://d1qjolj82nwh57.cloudfront.net/deb/redd_1.0.0-1_amd64.deb
+  fi
 
-    # install dependencies
-    apt-get -y install libmsgpack3 libuv0.10
+  # install dependencies
+  apt-get -y install libmsgpack3 libuv0.10
 
+  if [[ ! -f /usr/bin/redd ]]; then
     # install packages
     dpkg -i /tmp/libbframe_1.0.0-1_amd64.deb
     dpkg -i /tmp/libmsgxchng_1.0.0-1_amd64.deb
     dpkg -i /tmp/red_1.0.0-1_amd64.deb
     dpkg -i /tmp/redd_1.0.0-1_amd64.deb
-
-    # configure redd
-    echo "$(redd_conf)" > /etc/redd.conf
-
-    # ensure the redd db path exists
-    mkdir -p /var/db/redd
-
-    # create init entry
-    if [[ "$(init_system)" = "systemd" ]]; then
-      echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
-      systemctl enable redd.service
-    elif [[ "$(init_system)" = "upstart" ]]; then
-      echo "$(redd_upstart_conf)" > /etc/init/redd.conf
-    fi
-
-    # remove cruft
-    rm -f /tmp/libbframe_1.0.0-1_amd64.deb
-    rm -f /tmp/libmsgxchng_1.0.0-1_amd64.deb
-    rm -f /tmp/red_1.0.0-1_amd64.deb
-    rm -f /tmp/redd_1.0.0-1_amd64.deb
   fi
+
+  # configure redd
+  echo "$(redd_conf)" > /etc/redd.conf
+
+  # ensure the redd db path exists
+  mkdir -p /var/db/redd
+
+  # create init entry
+  if [[ "$(init_system)" = "systemd" ]]; then
+    echo "$(redd_systemd_conf)" > /etc/systemd/system/redd.service
+    systemctl enable redd.service
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(redd_upstart_conf)" > /etc/init/redd.conf
+  fi
+
+  # remove cruft
+  rm -f /tmp/libbframe_1.0.0-1_amd64.deb
+  rm -f /tmp/libmsgxchng_1.0.0-1_amd64.deb
+  rm -f /tmp/red_1.0.0-1_amd64.deb
+  rm -f /tmp/redd_1.0.0-1_amd64.deb
 }
 
 start_redd() {
@@ -236,46 +233,46 @@ start_vxlan_bridge() {
 }
 
 install_nanoagent() {
-  if [[ ! -f /usr/local/bin/nanoagent ]]; then
-    # download nanoagent
-    curl \
-      -f \
-      -k \
-      -o /usr/local/bin/nanoagent \
-      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
+  # download nanoagent
+  curl \
+    -f \
+    -k \
+    -o /usr/local/bin/nanoagent \
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
 
-    # update permissions
-    chmod 755 /usr/local/bin/nanoagent
+  # update permissions
+  chmod 755 /usr/local/bin/nanoagent
 
-    # download md5
-    mkdir -p /var/nanobox
-    curl \
-      -f \
-      -k \
-      -o /var/nanobox/nanoagent.md5 \
-      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+  # download md5
+  mkdir -p /var/nanobox
+  curl \
+    -f \
+    -k \
+    -o /var/nanobox/nanoagent.md5 \
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
 
-    # create db
-    mkdir -p /var/db/nanoagent
+  if [[ "$(cat /var/nanobox/nanoagent.md5)" != "$(md5sum /usr/local/bin/nanoagent | cut -f1 -d' ')" ]]; then
+    echo "nanoagent MD5s do not match!";
+    exit 1;
+  fi
 
-    # generate config file
-    mkdir -p /etc/nanoagent
-    echo "$(nanoagent_json)" > /etc/nanoagent/config.json
+  # create db
+  mkdir -p /var/db/nanoagent
 
-    # create init script
-    if [[ "$(init_system)" = "systemd" ]]; then
-      echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
-      systemctl enable nanoagent.service
-    elif [[ "$(init_system)" = "upstart" ]]; then
-      echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
-    fi
+  # generate config file
+  mkdir -p /etc/nanoagent
+  echo "$(nanoagent_json)" > /etc/nanoagent/config.json
+
+  # create init script
+  if [[ "$(init_system)" = "systemd" ]]; then
+    echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
+    systemctl enable nanoagent.service
+  elif [[ "$(init_system)" = "upstart" ]]; then
+    echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
   fi
 
   # create update script
-  if [[ ! -f /usr/local/bin/nanoagent-update ]]; then
-    # create the utility
-    echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
-  fi
+  echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent-update
@@ -316,10 +313,7 @@ configure_firewall() {
   fi
 
   # create firewall script
-  if [[ ! -f /usr/local/bin/build-firewall.sh ]]; then
-    # create the utility
-    echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
-  fi
+  echo "$(build_firewall)" > /usr/local/bin/build-firewall.sh
 
   # update permissions
   chmod 755 /usr/local/bin/build-firewall.sh
@@ -340,6 +334,14 @@ start_firewall() {
 
 # conifgure automatic updates to not update kernel or docker
 configure_updates() {
+  # Remove extra architectures (will exit 0 but display warning if none)
+  # Linode servers have i386 added for convenience(?) but we want fast
+  # apt updates.
+  dpkg --remove-architecture "$(dpkg --print-foreign-architectures)"
+
+  # trim extra sources for faster apt updates
+  sed -i -r '/(-src|backports)/d' /etc/apt/sources.list
+
   cat > /etc/apt/apt.conf.d/50unattended-upgrades <<'END'
 // Automatically upgrade packages from these (origin:archive) pairs
 Unattended-Upgrade::Allowed-Origins {
