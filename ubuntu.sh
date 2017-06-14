@@ -261,6 +261,7 @@ install_nanoagent() {
 
   # create init script
   if [[ "$(init_system)" = "systemd" ]]; then
+    echo "View logs with 'journalctl -fu nanoagent'">> /var/log/nanoagent.log
     echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
     systemctl enable nanoagent.service
   elif [[ "$(init_system)" = "upstart" ]]; then
@@ -562,8 +563,9 @@ Description=Nanoagent daemon
 After=syslog.target network.target redd.service
 
 [Service]
+User=root
 OOMScoreAdjust=-1000
-ExecStart=/bin/su root -c '/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json >> /var/log/nanoagent.log 2>&1'
+ExecStart=/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json 2>&1
 Restart=on-failure
 
 [Install]
