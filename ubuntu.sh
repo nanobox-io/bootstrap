@@ -566,7 +566,7 @@ After=syslog.target network.target redd.service
 User=root
 OOMScoreAdjust=-1000
 ExecStart=/usr/local/bin/nanoagent server --config /etc/nanoagent/config.json 2>&1
-Restart=on-failure
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
