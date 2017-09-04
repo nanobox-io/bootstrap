@@ -16,6 +16,7 @@ VIP="192.168.0.55"
 ID="123"
 COMPONENT=""
 INTERNAL_IFACE="eth1"
+MTU=1450
 
 init_system() {
   if [[ -f /sbin/systemctl || -f /bin/systemctl ]]; then
@@ -189,7 +190,7 @@ create_docker_network() {
     # create a docker network
     docker network create \
       --driver=bridge --subnet=192.168.0.0/16 \
-      --opt="com.docker.network.driver.mtu=1450" \
+      --opt="com.docker.network.driver.mtu=$MTU" \
       --opt="com.docker.network.bridge.name=redd0" \
       --gateway=$VIP \
       nanobox
@@ -682,6 +683,8 @@ for i in "${@}"; do
   esac
 
 done
+
+let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 
 # silently fix hostname in ps1
 fix_ps1
