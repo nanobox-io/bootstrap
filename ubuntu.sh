@@ -574,7 +574,7 @@ END
 }
 
 build_firewall() {
-  cat <<'END'
+  cat <<END
 #!/bin/bash
 
 if [ ! -f /run/iptables ]; then
@@ -608,8 +608,15 @@ if [ ! -f /run/iptables ]; then
   iptables -A INPUT -i docker0 -j ACCEPT
   iptables -A FORWARD -i docker0 -j ACCEPT
   iptables -A FORWARD -o docker0 -j ACCEPT
-  iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-  iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE
+  iptables -t nat -A POSTROUTING -o ${INTERNAL_IFACE} -j MASQUERADE
+END
+
+if [ -n $EXTERNAL_IFACE ]
+then
+  echo "  iptables -t nat -A POSTROUTING -o ${EXTERNAL_IFACE} -j MASQUERADE"
+fi
+
+cat <<END
   touch /run/iptables
 fi
 END
@@ -678,6 +685,9 @@ for i in "${@}"; do
       ;;
     internal-iface=* )
       INTERNAL_IFACE=${i#*=}
+      ;;
+    external-iface=* )
+      EXTERNAL_IFACE=${i#*=}
       ;;
   esac
 
