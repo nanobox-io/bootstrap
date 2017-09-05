@@ -47,6 +47,8 @@ if [[ ! -f /usr/bin/docker ]]; then
   which lsb_release || run_as_root "apt-get -y install lsb-release"
 
   release=$(lsb_release -cs)
+  
+  [ -f /usr/lib/apt/methods/https ] || run_as_root "apt-get -y install apt-transport-https"
 
   # add the source to our apt sources
   run_as_root "echo \
