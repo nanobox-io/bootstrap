@@ -29,17 +29,69 @@ init_system() {
 }
 
 internal_ip() {
-  ip addr \
-    | grep "$INTERNAL_IFACE" \
-      | grep "inet " \
-        | awk '{print $2}' \
-          | awk -F/ '{print $1}'
+  ip -o -4 addr show ${INTERNAL_IFACE} \
+    | awk '{print $4}' \
+      | awk -F/ '{print $1}'
 }
 
 # Use id until we can incorporate app-name as well
 fix_ps1() {
   sed -i "s|@\\\h|@${ID}|g" /root/.bashrc
   grep 'export TERM=xterm' /root/.bashrc || echo 'export TERM=xterm' >> /root/.bashrc
+}
+
+# Ensure the host is using the expected interface names provided by Odin
+ensure_iface_naming_consistency() {
+  set +e
+
+  fixed=false
+
+  # Check for INTERNAL_IFACE in interface list
+  ip -o -4 addr show ${INTERNAL_IFACE} > /dev/null
+  if [[ $? -ne 0 ]]
+  then
+    actual_if="$(ip -o -4 addr \
+      | grep -vwe lo -e docker0 -e redd0 -e ${VIP} \
+        | awk '{print $2}')"
+    fix_iface_name "${actual_if}" "${INTERNAL_IFACE}"
+    fixed=true
+  fi
+
+  # Check for EXTERNAL_IFACE in interface list
+  if [[ -n "${EXTERNAL_IFACE}" ]] # Is one set?
+  then
+    ip -o -4 addr show ${EXTERNAL_IFACE} > /dev/null
+    if [[ $? -ne 0 ]]
+    then
+      actual_if="$(ip -o -4 addr | grep -w ${VIP} | awk '{print $2}')"
+      fix_iface_name "${actual_if}" "${EXTERNAL_IFACE}"
+      fixed=true
+    fi
+  fi
+
+  # We only want to reboot once, if either interface has been renamed.
+  if [[ "${fixed}" == "true" ]]
+  then
+    sudo reboot
+    exit # Just in case the reboot doesn't start before the script tries to move on.
+  fi
+
+  set -e
+}
+
+# Modify interface name in udev rules
+fix_iface_name() {
+  bad_iface=$1
+  good_iface=$2
+
+  if [ -e /etc/udev/rules.d/70-persistent-net.rules ]
+  then
+    sudo sed -i s/${bad_iface}/${good_iface}/g /etc/udev/rules.d/70-persistent-net.rules
+  else
+    good_mac=$(ip link show ${bad_iface} | grep link/ | awk '{print $2}')
+    echo 'SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="'${good_mac}'", NAME="'${good_iface}'"' \
+      | sudo tee /etc/udev/rules.d/70-persistent-net.rules >/dev/null
+  fi
 }
 
 # install version of docker nanoagent is using
@@ -698,6 +750,8 @@ let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 
 # silently fix hostname in ps1
 fix_ps1
+
+run ensure_iface_naming_consistency "Making sure interfaces are named predictably"
 
 run configure_updates "Configuring automatic updates"
 
