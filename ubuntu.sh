@@ -602,6 +602,9 @@ if [ ! -f /run/iptables ]; then
   # allow nanoagent ssh connections
   iptables -A INPUT -p tcp --dport 1289 -j ACCEPT
 
+  # allow icmp packets
+  iptables -A INPUT -p icmp -j ACCEPT
+
   # Allow vxlan and docker traffic
   iptables -A INPUT -i redd0 -j ACCEPT
   iptables -A FORWARD -i redd0 -j ACCEPT
