@@ -552,7 +552,7 @@ END
 nanoagent_container_start() {
   cat <<END
 #!/bin/bash
-if [[ $(docker inspect \$1 | grep -c '"NetworkMode": "nanobox"' ) -gt 0 ]]; then
+if [[ \$(docker inspect \$1 | grep -c '"NetworkMode": "nanobox"' ) -gt 0 ]]; then
   docker exec \$1 ifconfig eth0 mtu $MTU
 fi
 END
