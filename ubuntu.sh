@@ -312,6 +312,15 @@ install_nanoagent() {
   mkdir -p /etc/nanoagent
   echo "$(nanoagent_json)" > /etc/nanoagent/config.json
 
+  # create folder for container start/stop scripts
+  mkdir -p /opt/nanoagent/hooks
+
+  # create start and stop scripts for nanoagent
+  echo "$(nanoagent_container_start)" > /opt/nanoagent/hooks/container_on_start.sh
+  chmod 755 /opt/nanoagent/hooks/container_on_start.sh
+  echo "$(nanoagent_container_stop)" > /opt/nanoagent/hooks/container_on_stop.sh
+  chmod 755 /opt/nanoagent/hooks/container_on_stop.sh
+
   # create init script
   if [[ "$(init_system)" = "systemd" ]]; then
     echo "View logs with 'journalctl -fu nanoagent'">> /var/log/nanoagent.log
@@ -540,8 +549,26 @@ nanoagent_json() {
   "api_port":"8570",
   "route_http_port":"80",
   "route_tls_port":"443",
-  "data_file":"/var/db/nanoagent/bolt.db"
+  "data_file":"/var/db/nanoagent/bolt.db",
+  "on_container_start": "/opt/nanoagent/hooks/container_on_start.sh",
+  "on_container_stop": "/opt/nanoagent/hooks/container_on_stop.sh"
 }
+END
+}
+
+nanoagent_container_start() {
+  cat <<END
+#!/bin/bash
+if [[ $(docker inspect \$1 | grep -c '"NetworkMode": "nanobox"' ) -gt 0 ]]; then
+  docker exec \$1 ifconfig eth0 mtu $MTU
+fi
+END
+}
+
+nanoagent_container_stop() {
+  cat <<END
+#!/bin/bash
+
 END
 }
 
