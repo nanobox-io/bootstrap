@@ -44,8 +44,6 @@ fix_ps1() {
 ensure_iface_naming_consistency() {
   set +e
 
-  fixed=false
-
   # Check for INTERNAL_IFACE in interface list
   ip -o -4 addr show ${INTERNAL_IFACE} > /dev/null
   if [[ $? -ne 0 ]]
@@ -54,7 +52,6 @@ ensure_iface_naming_consistency() {
       | grep -vwe lo -e docker0 -e redd0 -e ${VIP} \
         | awk '{print $2}')"
     fix_iface_name "${actual_if}" "${INTERNAL_IFACE}"
-    fixed=true
   fi
 
   # Check for EXTERNAL_IFACE in interface list
@@ -65,15 +62,7 @@ ensure_iface_naming_consistency() {
     then
       actual_if="$(ip -o -4 addr | grep -w ${VIP} | awk '{print $2}')"
       fix_iface_name "${actual_if}" "${EXTERNAL_IFACE}"
-      fixed=true
     fi
-  fi
-
-  # We only want to reboot once, if either interface has been renamed.
-  if [[ "${fixed}" == "true" ]]
-  then
-    sudo reboot
-    exit # Just in case the reboot doesn't start before the script tries to move on.
   fi
 
   set -e
@@ -92,6 +81,10 @@ fix_iface_name() {
     echo 'SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="'${good_mac}'", NAME="'${good_iface}'"' \
       | sudo tee /etc/udev/rules.d/70-persistent-net.rules >/dev/null
   fi
+
+  ip l set ${bad_iface} down
+  ip l set ${bad_iface} name ${good_iface}
+  ip l set ${good_iface} up
 }
 
 # install version of docker nanoagent is using
@@ -242,9 +235,9 @@ create_docker_network() {
     # create a docker network
     docker network create \
       --driver=bridge --subnet=192.168.0.0/16 \
-      --opt="com.docker.network.driver.mtu=$MTU" \
+      --opt="com.docker.network.driver.mtu=${MTU}" \
       --opt="com.docker.network.bridge.name=redd0" \
-      --gateway=$VIP \
+      --gateway=${VIP} \
       nanobox
   fi
 }
@@ -443,7 +436,7 @@ routing-enabled yes
 
 bind 127.0.0.1
 udp-listen-address $(internal_ip)
-vxlan-interface $INTERNAL_IFACE
+vxlan-interface ${INTERNAL_IFACE}
 save-path /var/db/redd
 END
 }
@@ -542,9 +535,9 @@ END
 nanoagent_json() {
   cat <<END
 {
-  "host_id": "$ID",
-  "token":"$TOKEN",
-  "labels": {"component":"$COMPONENT"},
+  "host_id": "${ID}",
+  "token":"${TOKEN}",
+  "labels": {"component":"${COMPONENT}"},
   "log_level":"DEBUG",
   "api_port":"8570",
   "route_http_port":"80",
@@ -592,7 +585,7 @@ curl \
 # compare latest with installed
 latest=$(cat /tmp/nanoagent.md5)
 
-if [ ! "$current" = "$latest" ]; then
+if [ ! "${current}" = "${latest}" ]; then
   echo "Nanoagent is out of date, updating to latest"
 
   # stop the running Nanoagent
@@ -694,7 +687,7 @@ if [ ! -f /run/iptables ]; then
   iptables -t nat -A POSTROUTING -o ${INTERNAL_IFACE} -j MASQUERADE
 END
 
-if [ -n $EXTERNAL_IFACE ]
+if [ -n "${EXTERNAL_IFACE}" ]
 then
   echo "  iptables -t nat -A POSTROUTING -o ${EXTERNAL_IFACE} -j MASQUERADE"
 fi
