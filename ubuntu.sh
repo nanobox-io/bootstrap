@@ -30,8 +30,9 @@ init_system() {
 
 internal_ip() {
   ip -o -4 addr show ${INTERNAL_IFACE} \
-    | awk '{print $4}' \
-      | awk -F/ '{print $1}'
+    | grep " ${INTERNAL_IFACE}\\\\" \
+      | awk '{print $4}' \
+        | awk -F/ '{print $1}'
 }
 
 # Use id until we can incorporate app-name as well
