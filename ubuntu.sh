@@ -455,6 +455,10 @@ respawn
 
 kill timeout 20
 
+pre-start script
+    /sbin/ip link del vxlan0
+end script
+
 exec redd /etc/redd.conf
 END
 }
@@ -468,6 +472,7 @@ Before=vxlan.service
 
 [Service]
 OOMScoreAdjust=-1000
+ExecStartPre=-/sbin/ip link del vxlan0
 ExecStart=/usr/bin/redd /etc/redd.conf
 Restart=on-failure
 
@@ -522,6 +527,7 @@ vxlan_systemd_conf() {
 [Unit]
 Description=Red vxlan to docker bridge
 After=redd.service
+BindsTo=redd.service
 
 [Service]
 Type=oneshot
