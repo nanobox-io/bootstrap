@@ -200,6 +200,15 @@ install_red() {
     echo "$(redd_upstart_conf)" > /etc/init/redd.conf
   fi
 
+  # create bridge script
+  if [[ ! -f /usr/local/bin/enable-vxlan-bridge.sh ]]; then
+    # create the utility
+    echo "$(vxlan_bridge)" > /usr/local/bin/enable-vxlan-bridge.sh
+  fi
+
+  # update permissions
+  chmod 755 /usr/local/bin/enable-vxlan-bridge.sh
+
   # remove cruft
   rm -f /tmp/libbframe_1.0.0-1_amd64.deb
   rm -f /tmp/libmsgxchng_1.0.0-1_amd64.deb
@@ -240,38 +249,6 @@ create_docker_network() {
       --opt="com.docker.network.bridge.name=redd0" \
       --gateway=${VIP} \
       nanobox
-  fi
-}
-
-create_vxlan_bridge() {
-  # create service entry and configuration
-  if [[ "$(init_system)" = "systemd" ]]; then
-    echo "$(vxlan_systemd_conf)" > /etc/systemd/system/vxlan.service
-    systemctl enable vxlan.service
-  elif [[ "$(init_system)" = "upstart" ]]; then
-    echo "$(vxlan_upstart_conf)" > /etc/init/vxlan.conf
-  fi
-
-  # create bridge script
-  if [[ ! -f /usr/local/bin/enable-vxlan-bridge.sh ]]; then
-    # create the utility
-    echo "$(vxlan_bridge)" > /usr/local/bin/enable-vxlan-bridge.sh
-  fi
-
-  # update permissions
-  chmod 755 /usr/local/bin/enable-vxlan-bridge.sh
-}
-
-start_vxlan_bridge() {
-  # ensure the vxlan service is started
-  if [[ "$(init_system)" = "systemd" ]]; then
-    if [[ ! `service vxlan status | grep "active (running)"` ]]; then
-      service vxlan start
-    fi
-  elif [[ "$(init_system)" = "upstart" ]]; then
-    if [[ ! `service vxlan status | grep start/running` ]]; then
-      service vxlan start
-    fi
   fi
 }
 
@@ -456,10 +433,14 @@ respawn
 kill timeout 20
 
 pre-start script
-    /sbin/ip link del vxlan0
+    [ -d /sys/devices/virtual/net/vxlan0 ] && /sbin/ip link del vxlan0
 end script
 
 exec redd /etc/redd.conf
+
+post-start script
+    /usr/local/bin/enable-vxlan-bridge.sh
+end script
 END
 }
 
@@ -474,6 +455,7 @@ Before=vxlan.service
 OOMScoreAdjust=-1000
 ExecStartPre=-/sbin/ip link del vxlan0
 ExecStart=/usr/bin/redd /etc/redd.conf
+ExecStartPost=/usr/local/bin/enable-vxlan-bridge.sh
 Restart=on-failure
 
 [Install]
@@ -507,35 +489,6 @@ if [ $? -ne 0 ]; then
   # bridge the network onto the red vxlan
   /sbin/brctl addif redd0 vxlan0
 fi
-END
-}
-
-vxlan_upstart_conf() {
-  cat <<'END'
-description "Red vxlan to docker bridge"
-
-oom score never
-
-start on runlevel [2345]
-
-exec /usr/local/bin/enable-vxlan-bridge.sh
-END
-}
-
-vxlan_systemd_conf() {
-  cat <<'END'
-[Unit]
-Description=Red vxlan to docker bridge
-After=redd.service
-BindsTo=redd.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/local/bin/enable-vxlan-bridge.sh
-
-[Install]
-WantedBy=multi-user.target
 END
 }
 
@@ -788,13 +741,11 @@ run configure_updates "Configuring automatic updates"
 run install_docker "Installing docker"
 run start_docker "Starting docker daemon"
 
-run install_red "Installing red"
-run start_redd "Starting red daemon"
-
 run install_bridgeutils "Installing ethernet bridging utilities"
 run create_docker_network "Creating isolated docker network"
-run create_vxlan_bridge "Creating red vxlan bridge"
-run start_vxlan_bridge "Starting red vxlan bridge"
+
+run install_red "Installing red"
+run start_redd "Starting red daemon"
 
 run configure_modloader "Configuring modloader"
 run start_modloader "Starting modloader"
