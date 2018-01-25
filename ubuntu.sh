@@ -18,6 +18,8 @@ COMPONENT=""
 INTERNAL_IFACE="eth1"
 MTU=1450
 
+RENAME_IFACE="false"
+
 init_system() {
   if [[ -f /sbin/systemctl || -f /bin/systemctl ]]; then
     echo "systemd"
@@ -66,6 +68,11 @@ ensure_iface_naming_consistency() {
     fi
   fi
 
+  if [[ ${RENAME_IFACE} = 'true' ]]
+  then
+    reboot
+  fi
+
   set -e
 }
 
@@ -83,9 +90,11 @@ fix_iface_name() {
       | sudo tee /etc/udev/rules.d/70-persistent-net.rules >/dev/null
   fi
 
-  ip l set ${bad_iface} down
-  ip l set ${bad_iface} name ${good_iface}
-  ip l set ${good_iface} up
+  RENAME_IFACE="true"
+
+  # ip l set ${bad_iface} down
+  # ip l set ${bad_iface} name ${good_iface}
+  # ip l set ${good_iface} up
 }
 
 # install version of docker nanoagent is using
