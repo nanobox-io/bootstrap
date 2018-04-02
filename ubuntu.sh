@@ -101,8 +101,8 @@ install_docker() {
   release=$(lsb_release -cs)
 
   echo '   -> fetch docker'
-  time wget -O /tmp/docker-engine_1.12.6.deb \
-    https://apt.dockerproject.org/repo/pool/main/d/docker-engine/docker-engine_1.12.6-0~ubuntu-${release}_amd64.deb
+  time wget -O /tmp/docker-ce_17.12.0.deb \
+    https://download.docker.com/linux/ubuntu/dists/${release}/pool/stable/amd64/docker-ce_17.12.0~ce-0~ubuntu_amd64.deb
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
@@ -145,7 +145,7 @@ END
 
   # install docker
   echo '   -> install docker'
-  time dpkg --force-confdef --force-confold -i /tmp/docker-engine_1.12.6.deb || apt-get install -yf
+  time dpkg --force-confdef --force-confold -i /tmp/docker-ce_17.12.0.deb || apt-get install -yf
 }
 
 start_docker() {
@@ -231,6 +231,10 @@ install_bridgeutils() {
   fi
 }
 
+install_nfsutils() {
+  apt-get install -y nfs-common
+}
+
 create_docker_network() {
   if [[ ! `docker network ls | grep nanobox` ]]; then
     # create a docker network
@@ -281,7 +285,7 @@ install_nanoagent() {
     -f \
     -k \
     -o /usr/local/bin/nanoagent \
-    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent
@@ -292,7 +296,7 @@ install_nanoagent() {
     -f \
     -k \
     -o /var/nanobox/nanoagent.md5 \
-    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2.md5
 
   if [[ "$(cat /var/nanobox/nanoagent.md5)" != "$(md5sum /usr/local/bin/nanoagent | cut -f1 -d' ')" ]]; then
     echo "nanoagent MD5s do not match!";
@@ -554,7 +558,7 @@ curl \
   -k \
   -s \
   -o /tmp/nanoagent.md5 \
-  https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent.md5
+  https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2.md5
 
 # compare latest with installed
 latest=$(cat /tmp/nanoagent.md5)
@@ -570,7 +574,7 @@ if [ ! "${current}" = "${latest}" ]; then
     -f \
     -k \
     -o /usr/local/bin/nanoagent \
-    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent
+    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2
 
   # update permissions
   chmod 755 /usr/local/bin/nanoagent
@@ -759,6 +763,7 @@ run install_red "Installing red"
 run start_redd "Starting red daemon"
 
 run install_bridgeutils "Installing ethernet bridging utilities"
+run install_nfsutils "Installing nfs client utilities"
 run create_docker_network "Creating isolated docker network"
 run create_vxlan_bridge "Creating red vxlan bridge"
 run start_vxlan_bridge "Starting red vxlan bridge"
