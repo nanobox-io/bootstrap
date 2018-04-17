@@ -102,7 +102,7 @@ install_docker() {
 
   echo '   -> fetch docker'
   time wget -O /tmp/docker-ce_17.12.0.deb \
-    https://download.docker.com/linux/ubuntu/dists/${release}/pool/stable/amd64/docker-ce_17.12.0~ce-0~ubuntu_amd64.deb
+    https://download.docker.com/linux/ubuntu/dists/${release}/pool/stable/amd64/docker-ce_18.03.0~ce-0~ubuntu_amd64.deb
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
