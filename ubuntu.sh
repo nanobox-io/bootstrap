@@ -96,7 +96,7 @@ install_docker() {
   time apt-get -y update
 
   # ensure lsb-release is installed
-  which lsb_release || apt-get -y install lsb-release
+  which lsb_release || apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install lsb-release
 
   release=$(lsb_release -cs)
 
@@ -110,7 +110,7 @@ install_docker() {
 
   # install docker deps
   echo '   -> install docker deps'
-  time apt-get -y install libltdl7
+  time apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7
 
   # install aufs kernel module
   if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
@@ -176,7 +176,7 @@ install_red() {
   fi
 
   # install dependencies
-  apt-get -y install libmsgpack3 libuv0.10
+  apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libmsgpack3 libuv0.10
 
   if [[ ! -f /usr/bin/redd ]]; then
     # install packages
@@ -280,50 +280,63 @@ start_vxlan_bridge() {
 }
 
 install_nanoagent() {
-  # download nanoagent
-  curl \
-    -f \
-    -k \
-    -o /usr/local/bin/nanoagent \
-    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2
-
-  # update permissions
-  chmod 755 /usr/local/bin/nanoagent
-
-  # download md5
-  mkdir -p /var/nanobox
-  curl \
-    -f \
-    -k \
-    -o /var/nanobox/nanoagent.md5 \
-    https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2.md5
-
-  if [[ "$(cat /var/nanobox/nanoagent.md5)" != "$(md5sum /usr/local/bin/nanoagent | cut -f1 -d' ')" ]]; then
-    echo "nanoagent MD5s do not match!";
-    exit 1;
-  fi
-
-  # create db
-  mkdir -p /var/db/nanoagent
-
-  # generate config file
-  mkdir -p /etc/nanoagent
-  echo "$(nanoagent_json)" > /etc/nanoagent/config.json
-
-  # create init script
+  # ensure the nanoagent service is stopped
+  running="false"
   if [[ "$(init_system)" = "systemd" ]]; then
-    echo "View logs with 'journalctl -fu nanoagent'">> /var/log/nanoagent.log
-    echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
-    systemctl enable nanoagent.service
+    if [[ `service nanoagent status | grep "active (running)"` ]]; then
+      running="true"
+    fi
   elif [[ "$(init_system)" = "upstart" ]]; then
-    echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
+    if [[ `service nanoagent status | grep start/running` ]]; then
+      running="true"
+    fi
   fi
+  if [[ $running = "false" ]]; then
+    # download nanoagent
+    curl \
+      -f \
+      -k \
+      -o /usr/local/bin/nanoagent \
+      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2
 
-  # create update script
-  echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
+    # update permissions
+    chmod 755 /usr/local/bin/nanoagent
 
-  # update permissions
-  chmod 755 /usr/local/bin/nanoagent-update
+    # download md5
+    mkdir -p /var/nanobox
+    curl \
+      -f \
+      -k \
+      -o /var/nanobox/nanoagent.md5 \
+      https://d1ormdui8qdvue.cloudfront.net/nanoagent/linux/amd64/nanoagent-v2.md5
+
+    if [[ "$(cat /var/nanobox/nanoagent.md5)" != "$(md5sum /usr/local/bin/nanoagent | cut -f1 -d' ')" ]]; then
+      echo "nanoagent MD5s do not match!";
+      exit 1;
+    fi
+
+    # create db
+    mkdir -p /var/db/nanoagent
+
+    # generate config file
+    mkdir -p /etc/nanoagent
+    echo "$(nanoagent_json)" > /etc/nanoagent/config.json
+
+    # create init script
+    if [[ "$(init_system)" = "systemd" ]]; then
+      echo "View logs with 'journalctl -fu nanoagent'">> /var/log/nanoagent.log
+      echo "$(nanoagent_systemd_conf)" > /etc/systemd/system/nanoagent.service
+      systemctl enable nanoagent.service
+    elif [[ "$(init_system)" = "upstart" ]]; then
+      echo "$(nanoagent_upstart_conf)" > /etc/init/nanoagent.conf
+    fi
+
+    # create update script
+    echo "$(nanoagent_update)" > /usr/local/bin/nanoagent-update
+
+    # update permissions
+    chmod 755 /usr/local/bin/nanoagent-update
+  fi
 }
 
 start_nanoagent() {
@@ -751,6 +764,11 @@ let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 
 # silently fix hostname in ps1
 fix_ps1
+
+# wait to make sure no package updates are currently running, it'll break the bootstrap script if it is running.
+while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
+  sleep 1
+done
 
 run ensure_iface_naming_consistency "Making sure interfaces are named predictably"
 
