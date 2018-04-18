@@ -765,6 +765,10 @@ let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 # silently fix hostname in ps1
 fix_ps1
 
+while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
+  sleep 1
+done
+
 run ensure_iface_naming_consistency "Making sure interfaces are named predictably"
 
 run configure_updates "Configuring automatic updates"
