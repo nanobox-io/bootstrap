@@ -765,6 +765,7 @@ let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 # silently fix hostname in ps1
 fix_ps1
 
+# wait to make sure no package updates are currently running, it'll break the bootstrap script if it is running.
 while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
   sleep 1
 done
