@@ -101,7 +101,7 @@ install_docker() {
   release=$(lsb_release -cs)
 
   echo '   -> fetch docker'
-  time wget -O /tmp/docker-ce_17.12.0.deb \
+  time wget -O /tmp/docker-ce_18.03.0.deb \
     https://download.docker.com/linux/ubuntu/dists/${release}/pool/stable/amd64/docker-ce_18.03.0~ce-0~ubuntu_amd64.deb
 
   # ensure the old repo is purged
@@ -110,7 +110,7 @@ install_docker() {
 
   # install docker deps
   echo '   -> install docker deps'
-  time apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7
+  time apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7 libseccomp2
 
   # install aufs kernel module
   if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
@@ -145,7 +145,7 @@ END
 
   # install docker
   echo '   -> install docker'
-  time dpkg --force-confdef --force-confold -i /tmp/docker-ce_17.12.0.deb || apt-get install -yf
+  time dpkg --force-confdef --force-confold -i /tmp/docker-ce_18.03.0.deb || apt-get install -yf
 }
 
 start_docker() {
