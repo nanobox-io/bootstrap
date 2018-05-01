@@ -18,6 +18,13 @@ COMPONENT=""
 INTERNAL_IFACE="eth1"
 MTU=1450
 
+wait_for_lock() {
+  # wait to make sure no package updates are currently running, it'll break the bootstrap script if it is running.
+  while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock >/dev/null 2>&1 ; do
+    sleep 1
+  done
+}
+
 init_system() {
   if [[ -f /sbin/systemctl || -f /bin/systemctl ]]; then
     echo "systemd"
@@ -93,10 +100,10 @@ install_docker() {
 
   # update the package index
   echo '   -> apt-get update'
-  time apt-get -y update
+  time ( wait_for_lock; apt-get -y update )
 
   # ensure lsb-release is installed
-  which lsb_release || apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install lsb-release
+  which lsb_release || ( wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install lsb-release )
 
   release=$(lsb_release -cs)
 
@@ -106,11 +113,11 @@ install_docker() {
 
   # ensure the old repo is purged
   echo '   -> remove old docker'
-  time dpkg --purge lxc-docker docker-engine
+  time ( wait_for_lock; dpkg --purge lxc-docker docker-engine )
 
   # install docker deps
   echo '   -> install docker deps'
-  time apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7 libseccomp2
+  time ( wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7 libseccomp2 )
 
   # install aufs kernel module
   if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
@@ -120,7 +127,7 @@ install_docker() {
     # get aufs kernel module
     wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
     https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
-    sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual
+    ( wait_for_lock; sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual )
   fi
 
   # enable use of aufs
@@ -145,7 +152,7 @@ END
 
   # install docker
   echo '   -> install docker'
-  time dpkg --force-confdef --force-confold -i /tmp/docker-ce_18.03.0.deb || apt-get install -yf
+  time ( wait_for_lock; dpkg --force-confdef --force-confold -i /tmp/docker-ce_18.03.0.deb || apt-get install -yf )
 }
 
 start_docker() {
@@ -176,7 +183,7 @@ install_red() {
   fi
 
   # install dependencies
-  apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libmsgpack3 libuv0.10
+  wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libmsgpack3 libuv0.10
 
   if [[ ! -f /usr/bin/redd ]]; then
     # install packages
@@ -227,11 +234,13 @@ start_redd() {
 
 install_bridgeutils() {
   if [[ ! -f /sbin/brctl ]]; then
+    wait_for_lock
     apt-get install -y bridge-utils
   fi
 }
 
 install_nfsutils() {
+  wait_for_lock
   apt-get install -y nfs-common
 }
 
@@ -398,6 +407,7 @@ configure_updates() {
   # Remove extra architectures (will exit 0 but display warning if none)
   # Linode servers have i386 added for convenience(?) but we want fast
   # apt updates.
+  wait_for_lock
   dpkg --remove-architecture "$(dpkg --print-foreign-architectures)"
 
   # trim extra sources for faster apt updates
@@ -764,11 +774,6 @@ let MTU=$(netstat -i | grep ${INTERNAL_IFACE} | awk '{print $2}')-50
 
 # silently fix hostname in ps1
 fix_ps1
-
-# wait to make sure no package updates are currently running, it'll break the bootstrap script if it is running.
-while fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
-  sleep 1
-done
 
 run ensure_iface_naming_consistency "Making sure interfaces are named predictably"
 
