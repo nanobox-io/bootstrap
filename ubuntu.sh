@@ -45,6 +45,7 @@ fix_ps1() {
 ensure_iface_naming_consistency() {
   set +e
 
+  RENAME=false
   # Check for INTERNAL_IFACE in interface list
   ip -o -4 addr show ${INTERNAL_IFACE} > /dev/null
   if [[ $? -ne 0 ]]
@@ -53,6 +54,7 @@ ensure_iface_naming_consistency() {
       | grep -vwe lo -e docker0 -e redd0 -e ${VIP} \
         | awk '{print $2}')"
     fix_iface_name "${actual_if}" "${INTERNAL_IFACE}"
+    RENAME=true
   fi
 
   # Check for EXTERNAL_IFACE in interface list
@@ -63,7 +65,13 @@ ensure_iface_naming_consistency() {
     then
       actual_if="$(ip -o -4 addr | grep -w ${VIP} | awk '{print $2}')"
       fix_iface_name "${actual_if}" "${EXTERNAL_IFACE}"
+      RENAME=true
     fi
+  fi
+
+  if [ $RENAME = "true" ]
+  then
+    reboot
   fi
 
   set -e
@@ -87,10 +95,6 @@ fix_iface_name() {
   then
     sudo sed -i s/${bad_iface}/${good_iface}/g /etc/network/interfaces.d/50-cloud-init.cfg
   fi
-
-  ip l set ${bad_iface} down
-  ip l set ${bad_iface} name ${good_iface}
-  ip l set ${good_iface} up
 }
 
 # install version of docker nanoagent is using
