@@ -83,6 +83,11 @@ fix_iface_name() {
       | sudo tee /etc/udev/rules.d/70-persistent-net.rules >/dev/null
   fi
 
+  if [ -e /etc/network/interfaces.d/50-cloud-init.cfg ]
+  then
+    sudo sed -i s/${bad_iface}/${good_iface}/g /etc/network/interfaces.d/50-cloud-init.cfg
+  fi
+
   ip l set ${bad_iface} down
   ip l set ${bad_iface} name ${good_iface}
   ip l set ${good_iface} up
