@@ -79,6 +79,7 @@ ensure_iface_naming_consistency() {
   if [ $RENAME = "true" ]
   then
     reboot
+    exit 1
   fi
 
   set -e
