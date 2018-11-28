@@ -129,24 +129,24 @@ install_docker() {
   echo '   -> install docker deps'
   time ( wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install libltdl7 libseccomp2 )
 
-  # install aufs kernel module
-  if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
-    # make parent directory
-    [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
+  # # install aufs kernel module
+  # if [ ! -f /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko ]; then
+  #   # make parent directory
+  #   [ -d /lib/modules/$(uname -r)/kernel/fs/aufs ] || mkdir -p /lib/modules/$(uname -r)/kernel/fs/aufs
 
-    # get aufs kernel module
-    wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
-    https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
-    ( wait_for_lock; sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual )
-  fi
+  #   # get aufs kernel module
+  #   wget -qq -O /lib/modules/$(uname -r)/kernel/fs/aufs/aufs.ko \
+  #   https://s3.amazonaws.com/tools.nanobox.io/aufs-kernel/$(uname -r)-aufs.ko || \
+  #   ( wait_for_lock; sudo apt-get install -y linux-image-extra-$(uname -r) linux-image-extra-virtual )
+  # fi
 
-  # enable use of aufs
-  echo '   -> install aufs'
-  modprobe aufs || ( time depmod && time modprobe aufs )
+  # # enable use of aufs
+  # echo '   -> install aufs'
+  # modprobe aufs || ( time depmod && time modprobe aufs )
 
   # set docker options
   cat > /etc/default/docker <<'END'
-DOCKER_OPTS="--iptables=false --storage-driver=aufs"
+DOCKER_OPTS="--iptables=false --storage-driver=overlay2"
 END
 
   if [[ "$(init_system)" = "systemd" ]]; then
