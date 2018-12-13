@@ -114,6 +114,7 @@ install_docker() {
 
   # ensure lsb-release is installed
   which lsb_release || ( wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install lsb-release )
+  which rngd || ( wait_for_lock; apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -y install rng-tools )
 
   release=$(lsb_release -cs)
 
