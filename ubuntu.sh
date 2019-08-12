@@ -618,6 +618,7 @@ if [ ! "${current}" = "${latest}" ]; then
   # move temporary md5
   mv /tmp/nanoagent.md5 /var/nanobox/nanoagent.md5
 else
+  service nanoagent restart
   echo "Nanoagent is up to date."
 fi
 END
