@@ -146,7 +146,7 @@ install_docker() {
 
   # set docker options
   cat > /etc/default/docker <<'END'
-DOCKER_OPTS="--iptables=false --storage-driver=overlay2"
+DOCKER_OPTS="--iptables=false --storage-driver=overlay2 --dns 8.8.8.8 --dns 8.8.4.4 --dns 1.1.1.1"
 END
 
   if [[ "$(init_system)" = "systemd" ]]; then
